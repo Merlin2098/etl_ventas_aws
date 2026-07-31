@@ -1,0 +1,12 @@
+repos:
+  - repo: local
+    hooks:
+      # Refresh AI-generated repository context before each commit.
+      - id: ai-refresh
+        name: AI refresh
+        entry: python scripts/hooks/ai_refresh.py
+        language: python
+        additional_dependencies:
+          - pyyaml
+        pass_filenames: false
+        stages: [pre-commit]

@@ -1,0 +1,5 @@
+job_name: orders_curated
+source_uri: s3://example-raw/orders/
+target_dataset: curated.orders
+transformation_sql: src/transformations/orders_to_curated.sql
+contract_path: src/contracts/orders_contract.json

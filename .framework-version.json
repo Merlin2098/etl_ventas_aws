@@ -1,0 +1,400 @@
+{
+  "framework_version": "0.3.0",
+  "installed_at": "2026-07-31T20:42:39.550715+00:00",
+  "include_structure": true,
+  "tree_digest": "639dc27e948506538e6bb212b9d62e4bc87efc40995245cdf143d4ed17ed2407",
+  "framework_manifest": {
+    ".gitattributes": {
+      "sha256": "a88181cb7302f5c1d7c4c73fd447a2e5d492432009e336a4361275be6821a29b",
+      "ownership": "managed"
+    },
+    ".gitignore": {
+      "sha256": "e4406a0a38ccdf1b97331daeca365dfb399a5f320cf74b2b0771a24835c95c4b",
+      "ownership": "managed"
+    },
+    ".pre-commit-config.yaml": {
+      "sha256": "e8f5e8c9d52878e0d19227e705549b5377a43ff08ef03eb769af7e4ba55ddaeb",
+      "ownership": "append-only"
+    },
+    "AGENTS.md": {
+      "sha256": "119c75a2a89c48f1ca04f3839c8f278949704926554aa41336e7ffcbefb6a25a",
+      "ownership": "managed"
+    },
+    "CLAUDE.md": {
+      "sha256": "b82604cce5926a3c93222f24f0d8001a4eb250a7899ea916932282c7355cab63",
+      "ownership": "managed"
+    },
+    "VERSION": {
+      "sha256": "d915cc95d6ca8f47ae297713ed46d4e5c5d99ddd29fc3c61e263bdf305f2b5b0",
+      "ownership": "managed"
+    },
+    "ai/__init__.py": {
+      "sha256": "c59d8af268044ab34a0f358edabb699bd23dc1294669d779ee23f7724d10858c",
+      "ownership": "managed"
+    },
+    "ai/context.yaml": {
+      "sha256": "5d48d70fb35f02e908e370afde2a8b550ba0dbf119197dcc77d63ce64f81d286",
+      "ownership": "managed"
+    },
+    "ai/domains/aws.md": {
+      "sha256": "dad83f3cfe304d6377ead76b8a4bc2e69f843e14e411c3f60e6ed943ebcffbde",
+      "ownership": "managed"
+    },
+    "ai/domains/data-product.md": {
+      "sha256": "cb977d5353ff6d9b4074086a1eb740103d7dd3c238b92f7fc2e7258e7a8e4c13",
+      "ownership": "managed"
+    },
+    "ai/domains/frontend.md": {
+      "sha256": "294f2fa1330aa20b8223e86408daf62f8f1d6296dd26f64606c4c69a1533ce68",
+      "ownership": "managed"
+    },
+    "ai/domains/go.md": {
+      "sha256": "9397a387663e452b470e415c8c6597dd0ff07a556c99d0a19e38a36009a62c6c",
+      "ownership": "managed"
+    },
+    "ai/domains/index.md": {
+      "sha256": "fd57a48c6144ee143e47ebdfdff303f068ac988bc62c35cd5993aa1b2f59cbb7",
+      "ownership": "managed"
+    },
+    "ai/domains/python.md": {
+      "sha256": "6318e3a0cf7df0a222e1a54df0e9c9651078fddc136382520980eceb51b3d70d",
+      "ownership": "managed"
+    },
+    "ai/domains/rust.md": {
+      "sha256": "31e8cd2606f6d983963d19c423296814c6d4c832bcb13fd6d40ea4e986e70ac2",
+      "ownership": "managed"
+    },
+    "ai/domains/shell.md": {
+      "sha256": "1b993ffca9be105aa2a0b3fdd11f13d30027dde6dd2478253a0aace649a6b7ce",
+      "ownership": "managed"
+    },
+    "ai/domains/terraform.md": {
+      "sha256": "6e6fda92b9a02dd7ee1e10432603076300cf6a0c4d6c974a8b94e7f5ae06acf8",
+      "ownership": "managed"
+    },
+    "ai/hooks/__init__.py": {
+      "sha256": "5384bfdb2df380b6557cc7a71d16891415bccaa87699406e236f752c6415389f",
+      "ownership": "managed"
+    },
+    "ai/hooks/treemap.py": {
+      "sha256": "87c2b3a125c7a57ff96180cc0dedd122c17d764d53c79487d0d9fa03e3416c0c",
+      "ownership": "managed"
+    },
+    "ai/policies/global.md": {
+      "sha256": "8759ac4ff4e87d981a60854f6ed5c6d507606e485c6b3d7e6cb5c43837889f85",
+      "ownership": "managed"
+    },
+    "ai/runtime/__init__.py": {
+      "sha256": "5384bfdb2df380b6557cc7a71d16891415bccaa87699406e236f752c6415389f",
+      "ownership": "managed"
+    },
+    "ai/runtime/config.py": {
+      "sha256": "89df01285b846430e118107569fca74c4f2dae115fdecbb84b8530e9905374c1",
+      "ownership": "managed"
+    },
+    "ai/runtime/context_bundle.py": {
+      "sha256": "209fdb4a91030b5d4c5ed828cfac939593f7299ee7c212f4497f179b190c0c3a",
+      "ownership": "managed"
+    },
+    "ai/runtime/dependency_graph.py": {
+      "sha256": "f65ea485ad3b4b73bfce8f894dbd6a4b132b3a58dc3cb27db2d88f47016976f3",
+      "ownership": "managed"
+    },
+    "ai/runtime/skill_registry.py": {
+      "sha256": "c90c52a49635538feefa752a6be8c516632bd648ddb278a85eccd047253b0e37",
+      "ownership": "managed"
+    },
+    "ai/skills.yaml": {
+      "sha256": "16f0f10070d976b000f4b828b0e60c439169c133a6a2beda4315db5765471316",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/account_bootstrap_console.md": {
+      "sha256": "971d3b0fa5a4ae6c06819f8cbbdaf05eaaafebf624749ad6f44c3048b1ffa738",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/api_gateway.md": {
+      "sha256": "79bad5c815ee5cb0ce306240334309b130ec138c87ff282db1d3b817ed3626e8",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/aws_cli.md": {
+      "sha256": "2b1894bf7afc5d9f548598fb880d3ce8649be43e23b542499f4b90c57fc7317d",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/aws_smoke_testing.md": {
+      "sha256": "d2e060b00a3b909593f2b4750efb8129e25b2d79d9cb2de214150b99fba480c5",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/bedrock_permissions.md": {
+      "sha256": "ca1d8afe06f3723f19b7bbf1c2830ce029c04c054c815ca7a35643fac163a429",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/cloudfront_s3_hosting.md": {
+      "sha256": "c3b98e7852d961551dee2412a0aa3579942619fc7fbb0e358ba00f1460ca78ff",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/cognito_auth.md": {
+      "sha256": "d0d278aaa358ab6d810a171d422d18ae03c2238583d67dc0b25e771cfff5d070",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/dynamodb_modeling.md": {
+      "sha256": "f0ea729fc11c54bd428a5dd47f4413a7f9e1df1de977983140e3caca7b9850f7",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/eventbridge.md": {
+      "sha256": "2dee5f507fdb7a22265e1c017c058d987402a1b6ffb3c4c256de6bf53775490b",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/glue_crawler_catalog.md": {
+      "sha256": "a8984b27dda48090ca7920773a7dbfc670dc42ef91a1b4104369c780bdebe6b1",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/glue_jobs.md": {
+      "sha256": "e8694a33a97fc14b51598e47079df6540a4465c6972fb6d410a8888ce611bddf",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/iam_policies.md": {
+      "sha256": "1b24f86bf7f71c9fd0be13e8f7e8d8ac621b19184be2c0f8f08d795b806c6b7e",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/kinesis_streaming_intro.md": {
+      "sha256": "ecac528f9c35a439526a4c629e8cfc7aee0049532c29c86ce9a2a7c09c6e4de4",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/lake_formation_intro.md": {
+      "sha256": "b15a336d28278d3dd7fc14bb18c6cfe659205a02c1a50ea2c248b5d0fe23d5a9",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/lambda_functions.md": {
+      "sha256": "dc64422430918c2e0885397f695667753d97b94c3b12391a538d8bf143d10b31",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/lambda_packaging.md": {
+      "sha256": "c08406d66112f2248075f2f8f43c0dd9d5166cf421c0db58284af74f97e9aca2",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/rds_overview.md": {
+      "sha256": "9cf4b3e874fb07c26cabfdee00425e9a5233b331e5588cea4de32265a660746e",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/s3_data_lake.md": {
+      "sha256": "538077babfec048e8e8b553c0ffdcf05c3b38793eaf2204c7feb48f48b4403bb",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/s3_presigned_urls.md": {
+      "sha256": "869a3fbf2a7218c72f36d9a14b023d6c0997ca6cdb1aaf53dc4301be6ad1a34a",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/sqs_patterns.md": {
+      "sha256": "e34b6001ed523ab7b2f92aab7b7e3540a54b36ffb95c6e033026e8269383831c",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/step_functions.md": {
+      "sha256": "0724b883954b7fed782c7191d1ae05b92db7b6f5cd2215051909ad85f6cd488a",
+      "ownership": "managed"
+    },
+    "ai/skills/aws/textract.md": {
+      "sha256": "dd03b33650f700a3d9f76626de406c76821a243df8fa1c573de9138308649bf8",
+      "ownership": "managed"
+    },
+    "ai/skills/data/athena_patterns.md": {
+      "sha256": "446260683eda0e1b3dc0d88dd007c63407f3a30d767895e3404566aca17c26b2",
+      "ownership": "managed"
+    },
+    "ai/skills/data/athena_vs_redshift.md": {
+      "sha256": "36862782a10832145c7ffac1a901876b6a8fa5b9b90c4423310d9234c900bfe9",
+      "ownership": "managed"
+    },
+    "ai/skills/data/data_contracts.md": {
+      "sha256": "d161aadddfd2c09c09ec986addaa9c71c3598768a7db4a1d916dfd9c1552225a",
+      "ownership": "managed"
+    },
+    "ai/skills/data/data_quality_guidance.md": {
+      "sha256": "e51debf5ba420c2d4c875c25585093e8a3621c42b9a15ad933a35e4c0f0b398e",
+      "ownership": "managed"
+    },
+    "ai/skills/data/etl_patterns.md": {
+      "sha256": "8c45ee3e30200d71b22f932f0c2af81fba35b5b7c856c4600d6a15c8a33ab0d8",
+      "ownership": "managed"
+    },
+    "ai/skills/frontend/api_client_patterns.md": {
+      "sha256": "91f4d53c97817393e771f0d9885817d553cc5690fc2d927fa089cbda3b54aa0f",
+      "ownership": "managed"
+    },
+    "ai/skills/frontend/file_upload_ux.md": {
+      "sha256": "f2fe8d660d36968ee5c5135484e794a8c4393dfe275117e7db4afaffd2934177",
+      "ownership": "managed"
+    },
+    "ai/skills/frontend/react_vite_aws.md": {
+      "sha256": "3cde652741eb84061f9548bc1280c78c8b03c4439f840a88533eabdb66968daa",
+      "ownership": "managed"
+    },
+    "ai/skills/go/go_project_guidance.md": {
+      "sha256": "d9f864deaf91a04af9a971edaec8ea50fd4f03fbe04d3bb50ed8f77001f80ac9",
+      "ownership": "managed"
+    },
+    "ai/skills/python/bedrock_client.md": {
+      "sha256": "ee29b0c29ddbb68c356e60a9917bb94850524054c395c3538bfbfbb159fb8e98",
+      "ownership": "managed"
+    },
+    "ai/skills/python/error_handling_pipeline.md": {
+      "sha256": "1c82b9a882cd22839dfc4aa6e4f08ade2d03ed711540bf935872f12c81de1ae5",
+      "ownership": "managed"
+    },
+    "ai/skills/python/logging_structured.md": {
+      "sha256": "3299c61bf9f9dc328c5eba848474f08562f666703ed0b6c3da999e732c7a1fa7",
+      "ownership": "managed"
+    },
+    "ai/skills/python/python_project_guidance.md": {
+      "sha256": "bcbecba2826b555c9d0ce7f989808377822bae9b0566463081cf47b9085ce734",
+      "ownership": "managed"
+    },
+    "ai/skills/python/python_testing_quality.md": {
+      "sha256": "be97a0ba449ce7ba56abbe1c3a71498fc5c0ec47f6bbdbf1005689f330e5d405",
+      "ownership": "managed"
+    },
+    "ai/skills/quality/debt_ledger.md": {
+      "sha256": "dfdc8f74a03c8f1786d15d16f44a2f346f6757334952330f55421575ce02188c",
+      "ownership": "managed"
+    },
+    "ai/skills/quality/over_engineering_review.md": {
+      "sha256": "c2b9343e59003471322a72c7cd9038f1dc23d9df6fdf90af47e453047a53e623",
+      "ownership": "managed"
+    },
+    "ai/skills/quality/simplicity.md": {
+      "sha256": "46700d68d6c616495d3a67158723ff7dc191147e9d99cb0932f925446bdd5c0c",
+      "ownership": "managed"
+    },
+    "ai/skills/rust/rust_project_guidance.md": {
+      "sha256": "71a2c7473c3dfa01ec1218232fcd688d60b9fd2d1092009e71b3a0faacfa1fce",
+      "ownership": "managed"
+    },
+    "ai/skills/shell/bash_core.md": {
+      "sha256": "29e7b31144ef494ec58a88e8632824508dbe5374ac8e3b22037bb7f526807c63",
+      "ownership": "managed"
+    },
+    "ai/skills/shell/cli_automation.md": {
+      "sha256": "1cd4813094c67956d1405f57786e6fe4602fc10e353a3ee697573f5a30151d6d",
+      "ownership": "managed"
+    },
+    "ai/skills/shell/environment_detection.md": {
+      "sha256": "c24144926741bfd8b074d2f4adde6ad7e6397a57eb9096341103c3f1847a7c89",
+      "ownership": "managed"
+    },
+    "ai/skills/shell/powershell_core.md": {
+      "sha256": "21d6019851cf80342c7305cbbf5ed3a709852e62808cc7c214685d7f26c847d3",
+      "ownership": "managed"
+    },
+    "ai/skills/shell/powershell_filesystem.md": {
+      "sha256": "13e04d5efd1088ea1858dc5267bfdc24e4ecf0835c10b679be7ea859e5975f05",
+      "ownership": "managed"
+    },
+    "ai/skills/shell/powershell_json_yaml.md": {
+      "sha256": "88ee2d2189a32db266a31389d62bc0cd9906dce8e736c36e4e617ae83e5930f8",
+      "ownership": "managed"
+    },
+    "ai/skills/shell/powershell_windows_admin.md": {
+      "sha256": "005e1f0b2577a7e55414696e5f7496b1f642479747b56314ff626079e03c5f60",
+      "ownership": "managed"
+    },
+    "ai/skills/shell/script_quality.md": {
+      "sha256": "8e11ab0b09c7cafbe5501c24b2f3c9f825f14a16963cd7711f05778f66fc60c1",
+      "ownership": "managed"
+    },
+    "ai/skills/shell/script_security.md": {
+      "sha256": "286bf596b9268d3051a179395719b16240a58cfaaf5708b1a1db73c61e8086b8",
+      "ownership": "managed"
+    },
+    "ai/skills/sql/sql_workflow_guidance.md": {
+      "sha256": "8bf7f841abdd8f3a737292f0cd012a3176ee5cd04ae607b5be83ab5700d2f481",
+      "ownership": "managed"
+    },
+    "ai/skills/terraform/environment_promotion.md": {
+      "sha256": "20525ce1a50f46cbeb43a0fa89539d67f3d26ea3c37113da17268f24b50d94e7",
+      "ownership": "managed"
+    },
+    "ai/skills/terraform/modules.md": {
+      "sha256": "95a9fe1459d1c74cc22862999cbfe08e2d5a538719b389c7d03052a11c4d7626",
+      "ownership": "managed"
+    },
+    "ai/skills/terraform/state_management.md": {
+      "sha256": "ae5973a82ec5bc887f5f8f3964f8a471b242476bbffe7fb7f6b69964f89f5dc4",
+      "ownership": "managed"
+    },
+    "ai/skills/terraform/terraform_governance.md": {
+      "sha256": "20fbbef38fe1e1ccb516ca9c8e0a8ae814776b846079e4bc7bc6110989059ddd",
+      "ownership": "managed"
+    },
+    "ai/skills/terraform/terraform_observability.md": {
+      "sha256": "b5a0200c48c62d7cb1f5ae5e1c69104e76f3ecd45f0da14993a9c0477fcda1bc",
+      "ownership": "managed"
+    },
+    "ai/tools/__init__.py": {
+      "sha256": "5384bfdb2df380b6557cc7a71d16891415bccaa87699406e236f752c6415389f",
+      "ownership": "managed"
+    },
+    "ai/tools/inspect_project.py": {
+      "sha256": "4b4c9102bb4520e91d78f830812c727b0ea51eb25a7c4ec86d301cae5e4c0734",
+      "ownership": "managed"
+    },
+    "ai/tools/refresh_context.py": {
+      "sha256": "d89b260750cfcbbf68e410962b9b71c1b4123df0e3fb0d5bc44383e591b7e752",
+      "ownership": "managed"
+    },
+    "pytest.ini": {
+      "sha256": "77123e12f664273644eeee0d5b99345120c0ad3d9d93392cd4e398aab96c5b0d",
+      "ownership": "managed"
+    },
+    "requirements-dev.txt": {
+      "sha256": "bb47e220bd2d1e4df3403cdf0592071041bf53f477a1b6aa7446e4650d94eabb",
+      "ownership": "managed"
+    },
+    "requirements.txt": {
+      "sha256": "6743bd95e7c6d14663ffa80761381564625dd06e25b986fa5b8379b3cff48036",
+      "ownership": "managed"
+    },
+    "scripts/generate_treemap.py": {
+      "sha256": "3f69bf61855b0cc2340aa3e4fac83588cae5cc0c07ada74d7d41e69d939c17a7",
+      "ownership": "managed"
+    },
+    "scripts/hooks/ai_refresh.py": {
+      "sha256": "1c331a25ed5285f6aa6f3cc09e7cfc7b40a163f0e3207d476043d974d6c57c97",
+      "ownership": "managed"
+    },
+    "scripts/package.py": {
+      "sha256": "d2f742ab2ca32e7fb8e89d392846e64dcaa46f22d96ea3195a21803c3def26a0",
+      "ownership": "managed"
+    },
+    "scripts/python/setup_env.sh": {
+      "sha256": "36e7c3fd74306659edf63eb5b2436e5bf2183470f5950be650a0c8c0806815a8",
+      "ownership": "managed"
+    },
+    "scripts/python/update_venv.sh": {
+      "sha256": "bd9a91807f3ed23aa2fd94a6b13df091d0f0fca7ecaa3dd97a8679b15b1d2f7c",
+      "ownership": "managed"
+    },
+    "scripts/restore_project.py": {
+      "sha256": "70cfd78421c8faa45e71cc6e990319bebc5386b0c14ff289c50dec39617cd54f",
+      "ownership": "managed"
+    },
+    "scripts/testing/check_ssl_regression.py": {
+      "sha256": "5a7fd520818319b33f93750386d51a42d520353d74d4efcd1c485b160f25c40a",
+      "ownership": "managed"
+    },
+    "scripts/testing/run_cloud_tests.py": {
+      "sha256": "6bb8e954d6ed6e01216bf28cc684159b79f8d8f34363d37bf0fe57f6a6ab421e",
+      "ownership": "managed"
+    },
+    "scripts/testing/run_pytest.py": {
+      "sha256": "9a809dc0b5efcf071e318a84e83dcc214807c48a803e36f7672fc21178acfd1b",
+      "ownership": "managed"
+    },
+    "scripts/testing/run_ruff_check.py": {
+      "sha256": "68ed773b6fe74ba0d11103c84c3557ee2d8b5206e1da8555c8ede46b94f35aa1",
+      "ownership": "managed"
+    },
+    "scripts/testing/run_ruff_format.py": {
+      "sha256": "012d576a5c15a6115449964501c07fdb80eb088acf1ab19649f2e236c3f77ac6",
+      "ownership": "managed"
+    }
+  }
+}

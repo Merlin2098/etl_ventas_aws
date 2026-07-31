@@ -1,0 +1,29 @@
+{
+  "dataset": "curated.orders",
+  "owner": "data-engineering",
+  "primary_key": [
+    "order_id"
+  ],
+  "columns": [
+    {
+      "name": "order_id",
+      "type": "string",
+      "nullable": false
+    },
+    {
+      "name": "customer_id",
+      "type": "string",
+      "nullable": false
+    },
+    {
+      "name": "order_total",
+      "type": "decimal",
+      "nullable": false
+    },
+    {
+      "name": "loaded_at",
+      "type": "timestamp",
+      "nullable": false
+    }
+  ]
+}
