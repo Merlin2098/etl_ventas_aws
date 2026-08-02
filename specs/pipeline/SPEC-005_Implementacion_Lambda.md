@@ -14,7 +14,7 @@ Definir la arquitectura interna de las funciones Lambda responsables del procesa
 
 # Arquitectura interna
 
-Cada Lambda es un despliegue independiente (imagen Docker propia en ECR, función propia, rol IAM propio — ver SPEC-004), pero las 5 comparten un **paquete de código común** para evitar duplicar validación, escritura en S3 y logging entre divisiones.
+Cada Lambda es un despliegue independiente (imagen Docker propia en ECR, función propia, rol IAM propio — ver SPEC-004), pero las 4 comparten un **paquete de código común** para evitar duplicar validación, escritura en S3 y logging entre divisiones.
 
 ```
 handler (division) → parser (division) → validate + normalize (común) → write gold/quarantine (común)
@@ -43,9 +43,6 @@ src/
 │   ├── moda/
 │   │   ├── handler.py
 │   │   └── parser.py           # JSON
-│   ├── hogar/
-│   │   ├── handler.py
-│   │   └── parser.py           # CSV
 │   └── marketplace/
 │       ├── handler.py
 │       └── parser.py           # PDF
@@ -107,7 +104,7 @@ Reglas (heredadas de `ai/skills/aws/lambda_packaging.md`):
 
 - Build con `--platform linux/amd64 --provenance=false` obligatorio.
 - `image_uri` en Terraform debe referenciar un tag específico (SHA), nunca `latest`.
-- El build/push de las 5 imágenes es responsabilidad de un script externo a Terraform (ver SPEC-004, "Flujo de despliegue").
+- El build/push de las 4 imágenes es responsabilidad de un script externo a Terraform (ver SPEC-004, "Flujo de despliegue").
 
 ---
 
@@ -128,7 +125,7 @@ class SalesParser(ABC):
 ```
 
 - `parse()` **no** valida ni normaliza — solo extrae filas crudas del formato de origen (CSV/Excel/JSON/PDF) a `dict`.
-- La validación y normalización al esquema Gold (SPEC-002) ocurre en `common/schema.py`, común a las 5 divisiones, para no duplicar reglas de negocio (recalculo de `total`, normalización de `date`, asignación de `store`).
+- La validación y normalización al esquema Gold (SPEC-002) ocurre en `common/schema.py`, común a las 4 divisiones, para no duplicar reglas de negocio (recalculo de `total`, normalización de `date`, asignación de `store`).
 - Cada `handler.py` de división es responsable de instanciar su parser concreto e invocar el flujo común: `parse → validate_and_normalize → write`.
 
 ## Parser PDF (Marketplace)
@@ -268,7 +265,7 @@ Nivel `INFO` para inicio/fin de invocación y conteo de filas válidas/inválida
 
 | Variable | Descripción |
 |----------|-------------|
-| `DIVISION` | Nombre de la división (`electronica`, `supermercado`, `moda`, `hogar`, `marketplace`); usado para fijar `store` y las rutas de escritura. |
+| `DIVISION` | Nombre de la división (`electronica`, `supermercado`, `moda`, `marketplace`); usado para fijar `store` y las rutas de escritura. |
 | `DATA_BUCKET` | Bucket de datos (bronze/gold/quarantine). |
 | `GOLD_PREFIX` | Prefijo base de la capa Gold (default `gold/`). |
 | `QUARANTINE_PREFIX` | Prefijo base de la capa Quarantine (default `quarantine/`). |

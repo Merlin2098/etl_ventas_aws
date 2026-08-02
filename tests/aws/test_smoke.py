@@ -2,7 +2,7 @@ import pytest
 
 pytestmark = pytest.mark.cloud
 
-DIVISIONS = ["electronica", "supermercado", "moda", "hogar", "marketplace"]
+DIVISIONS = ["electronica", "supermercado", "moda", "marketplace"]
 
 
 def test_aws_identity(aws_client):

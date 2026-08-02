@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.generators.common import maybe_corrupt
-from src.generators.divisions import DIVISIONS, DIVISION_ORDER
+from src.generators.engine.common import maybe_corrupt
+from src.generators.engine.config import DIVISIONS, DIVISION_ORDER
 
 
 def test_maybe_corrupt_never_changes_row_at_zero_error_rate():
@@ -15,7 +15,7 @@ def test_maybe_corrupt_never_changes_row_at_zero_error_rate():
         "quantity": 1,
         "price": 10,
     }
-    assert maybe_corrupt(row, "electronica", 0.0) == row
+    assert maybe_corrupt(row, "csv", 0.0) == row
 
 
 def test_maybe_corrupt_always_changes_row_at_full_error_rate():
@@ -27,28 +27,26 @@ def test_maybe_corrupt_always_changes_row_at_full_error_rate():
         "quantity": 1,
         "price": 10,
     }
-    corrupted = [maybe_corrupt(dict(row), "electronica", 1.0) for _ in range(20)]
+    corrupted = [maybe_corrupt(dict(row), "csv", 1.0) for _ in range(20)]
     assert any(c != row for c in corrupted)
 
 
-def test_divisions_cover_expected_five():
+def test_divisions_cover_expected_four():
     assert set(DIVISIONS.keys()) == {
         "electronica",
         "supermercado",
         "moda",
-        "hogar",
         "marketplace",
     }
     assert DIVISION_ORDER == [
         "electronica",
         "supermercado",
         "moda",
-        "hogar",
         "marketplace",
     ]
 
 
-def test_generate_sales_cli_writes_five_files_without_upload(tmp_path: Path):
+def test_generate_sales_cli_writes_four_files_without_upload(tmp_path: Path):
     import subprocess
     import sys
 
@@ -56,7 +54,7 @@ def test_generate_sales_cli_writes_five_files_without_upload(tmp_path: Path):
     result = subprocess.run(
         [
             sys.executable,
-            str(repo_root / "scripts" / "generate_sales.py"),
+            str(repo_root / "scripts" / "data_generator" / "generate_sales.py"),
             "--division",
             "all",
             "--date",
@@ -79,7 +77,6 @@ def test_generate_sales_cli_writes_five_files_without_upload(tmp_path: Path):
         "electronica_2026-08-01.csv",
         "supermercado_2026-08-01.xlsx",
         "moda_2026-08-01.json",
-        "hogar_2026-08-01.csv",
         "marketplace_2026-08-01.pdf",
     }
     actual_files = {p.name for p in tmp_path.iterdir()}

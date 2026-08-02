@@ -8,7 +8,7 @@ Borrador v0.1 (Línea Base)
 
 # Objetivo
 
-Definir el script Python que genera los datasets sintéticos de ventas para las 5 divisiones de RetailCorp (ver SPEC-002), en los formatos de origen correspondientes (CSV, Excel, JSON, PDF), y los sube a la capa Bronze del Data Lake (ver SPEC-003).
+Definir el script Python que genera los datasets sintéticos de ventas para las 4 divisiones de RetailCorp (ver SPEC-002), en los formatos de origen correspondientes (CSV, Excel, JSON, PDF), y los sube a la capa Bronze del Data Lake (ver SPEC-003).
 
 ---
 
@@ -37,20 +37,32 @@ Siguiendo `ai/skills/python/python_project_guidance.md` (lógica en `src/`, orqu
 
 ```
 scripts/
-└── generate_sales.py          # entrypoint CLI único, parametrizado por --division
+└── data_generator/
+    └── generate_sales.py        # entrypoint CLI único, parametrizado por --division
 
 src/
 └── generators/
     ├── __init__.py
-    ├── common.py                # Faker seed, catálogo de categorías/productos, inyección de errores
-    ├── schema.py                 # dataclass SaleRecord (campos "de origen", antes de normalizar)
-    ├── writers/
-    │   ├── csv_writer.py         # electronica, hogar
-    │   ├── excel_writer.py       # supermercado
-    │   ├── json_writer.py        # moda
-    │   └── pdf_writer.py         # marketplace
-    └── divisions.py               # mapeo division -> (writer, formato de fecha, extension)
+    ├── detalle-data.yaml         # fuente única de verdad: divisiones, formato, fecha, catálogo
+    └── engine/                    # código interno — no se edita para agregar/ajustar una división
+        ├── __init__.py
+        ├── common.py               # Faker seed, inyección de errores (maybe_corrupt), generate_row
+        ├── config.py                # carga detalle-data.yaml -> DIVISIONS / DIVISION_ORDER
+        ├── schema.py                # dataclass SaleRecord (campos "de origen", antes de normalizar)
+        ├── uploader.py               # subida a Bronze (boto3)
+        └── writers/
+            ├── csv_writer.py         # electronica
+            ├── excel_writer.py       # supermercado
+            ├── json_writer.py        # moda
+            └── pdf_writer.py         # marketplace
 ```
+
+`detalle-data.yaml` es lo primero visible al abrir `src/generators/` (junto a
+`__init__.py`), deliberadamente separado del código en `engine/`: todo lo que varía por
+división (formato de origen, formato de fecha, extensión, y el catálogo de
+categorías/productos/rango de precio) vive ahí, no hardcodeado en Python — agregar o
+ajustar una división es editar el YAML, sin tocar `engine/`, salvo que el nuevo formato de
+origen requiera un writer nuevo (ver "Selección de writer por división").
 
 ---
 
@@ -59,45 +71,83 @@ src/
 Un único script parametrizado, no 5 scripts separados:
 
 ```
-python scripts/generate_sales.py --division electronica --date 2026-08-01
-python scripts/generate_sales.py --division all --date 2026-08-01   # las 5 en secuencia
+python scripts/data_generator/generate_sales.py --division electronica --date 2026-08-01
+python scripts/data_generator/generate_sales.py --division all --date 2026-08-01   # las 4 en secuencia
 ```
 
 | Argumento | Descripción | Default |
 |-----------|-------------|---------|
-| `--division` | `electronica`, `supermercado`, `moda`, `hogar`, `marketplace`, o `all` (ejecuta las 5 en secuencia) | Requerido |
+| `--division` | `electronica`, `supermercado`, `moda`, `marketplace`, o `all` (ejecuta las 4 en secuencia) | `all` |
 | `--date` | Fecha de negocio a generar (`YYYY-MM-DD`) | Fecha de ejecución (hoy) |
 | `--rows` | Cantidad de filas a generar | 200-500 (ver SPEC-002) |
 | `--error-rate` | Proporción de filas con errores intencionales (0.0-1.0) | 0.05 (5%, ver "Errores intencionales") |
-| `--upload / --no-upload` | Si se sube el archivo generado a S3 Bronze o solo se escribe localmente | `--upload` |
-| `--output-dir` | Carpeta local donde se escribe el archivo antes de subir (o en vez de subir con `--no-upload`) | `./generated/` |
+| `--upload / --no-upload` | Si se sube el archivo generado a S3 Bronze o solo se escribe localmente | `--no-upload` (requiere `DATA_BUCKET` explícito para subir, ver "Carga hacia Amazon S3") |
+| `--output-dir` | Carpeta local donde se escribe el archivo antes de subir (o en vez de subir con `--no-upload`) | `data/` en la raíz del proyecto |
 
-`--division all` invoca internamente la misma lógica de generación por cada división, en el orden de la tabla de SPEC-002 (Electrónica, Supermercado, Moda, Hogar, Marketplace), consistente con SPEC-003 ("el presentador corre cada script o los cinco en secuencia").
+`--division all` invoca internamente la misma lógica de generación por cada división, en el orden de la tabla de SPEC-002 (Electrónica, Supermercado, Moda, Marketplace), consistente con SPEC-003 ("el presentador corre cada script o los cuatro en secuencia").
 
 ---
 
 # Selección de writer por división
 
-`src/generators/divisions.py` centraliza el mapeo, evitando un `if/elif` disperso en el entrypoint:
+`src/generators/engine/config.py` carga `src/generators/detalle-data.yaml` y resuelve
+cada división a un `DivisionConfig`, evitando un `if/elif` disperso en el entrypoint:
 
-```python
-DIVISIONS = {
-    "electronica":  DivisionConfig(writer=write_csv,   date_format="%d/%m/%Y", ext="csv"),
-    "supermercado": DivisionConfig(writer=write_excel,  date_format="%m-%d-%Y", ext="xlsx"),
-    "moda":         DivisionConfig(writer=write_json,   date_format="iso8601",  ext="json"),
-    "hogar":        DivisionConfig(writer=write_csv,    date_format="%Y/%m/%d", ext="csv"),
-    "marketplace":  DivisionConfig(writer=write_pdf,    date_format="texto_libre", ext="pdf"),
-}
+```yaml
+# src/generators/detalle-data.yaml
+divisions:
+  electronica:
+    format: csv
+    date_format: "%d/%m/%Y"
+    ext: csv
+    categories:
+      Audio:
+        products: ["Audífonos Bluetooth", "Parlante Portátil", "Barra de Sonido"]
+        price_min: 15
+        price_max: 300
+      # ...
+
+  supermercado:
+    format: excel
+    date_format: "%m-%d-%Y"
+    ext: xlsx
+    categories: { ... }
+
+  moda:
+    format: json
+    date_format: iso8601
+    ext: json
+    categories: { ... }
+
+  marketplace:
+    format: pdf
+    date_format: free_text_es
+    ext: pdf
+    categories: { ... }
+
+division_order: [electronica, supermercado, moda, marketplace]
 ```
 
-El formato de fecha por división refleja la heterogeneidad definida en SPEC-002 ("Fechas" — varía por división de forma realista); cada writer es responsable de formatear `date` según su propia convención antes de escribirla en el archivo de origen.
+`format` es un string (`csv`/`excel`/`json`/`pdf`) resuelto a la función writer real vía un
+diccionario fijo `FORMAT_WRITERS` en `engine/config.py` — el catálogo YAML no serializa
+código Python, solo el nombre del formato. Agregar una división con un formato de origen ya
+soportado (ej. otro CSV) es puramente editar el YAML; un formato nuevo (ej. XML) todavía
+requiere implementar su writer en `engine/writers/` y registrarlo en `FORMAT_WRITERS`.
 
-`date_format="texto_libre"` (Marketplace) se resuelve como el patrón concreto
-`"<día> de <mes en palabra, español> de <año>"` (ej. `"1 de agosto de 2026"`), generado con
-un mapa fijo de meses en español en `common.py`. Es "texto libre" en el sentido de que no
-es un formato estructurado como `%d/%m/%Y` (requiere un parser dedicado, no `strptime`
-directo), pero el patrón en sí es fijo y determinista — necesario para que el parser PDF
-de la Lambda (SPEC-005, "Parser PDF") pueda normalizarlo de forma confiable.
+`date_format` acepta tres formas: un patrón `strftime` literal (ej. `"%d/%m/%Y"`), o uno de
+los dos formatos con nombre resueltos por `engine/config.py`:
+
+- `iso8601` → `date.isoformat()` (Moda).
+- `free_text_es` → el patrón concreto `"<día> de <mes en palabra, español> de <año>"` (ej.
+  `"1 de agosto de 2026"`), generado con un mapa fijo de meses en español en `common.py`
+  (Marketplace). Es "texto libre" en el sentido de que no es un formato estructurado como
+  `%d/%m/%Y` (requiere un parser dedicado, no `strptime` directo), pero el patrón en sí es
+  fijo y determinista — necesario para que el parser PDF de la Lambda (SPEC-005, "Parser
+  PDF") pueda normalizarlo de forma confiable.
+
+El formato de fecha por división refleja la heterogeneidad definida en SPEC-002 ("Fechas"
+— varía por división de forma realista); cada writer es responsable de formatear `date`
+según su propia convención antes de escribirla en el archivo de origen.
 
 ---
 
@@ -117,9 +167,15 @@ class SaleRecord:
     # total NO se incluye: se calcula en la Lambda (SPEC-002/005), no en el generador
 ```
 
-- `category` y `product` se obtienen de un catálogo curado por división en `common.py` (ej. Electrónica: "Audio", "Computación", "Telefonía"; productos ligados a esa categoría vía Faker (`fake.word()` combinado con listas de referencia, o `fake.catch_phrase()` como nombre de producto simulado) para mantener nombres plausibles sin depender de un dataset real de productos.
+- `category` y `product` se eligen aleatoriamente del catálogo curado por división
+  declarado en `src/generators/detalle-data.yaml` (ej. Electrónica: "Audio",
+  "Computación", "Telefonía", cada una con su lista fija de productos plausibles). El
+  catálogo es data-driven — no hardcodeado en `engine/common.py` — para poder ajustar
+  categorías, productos o rangos de precio sin tocar código.
 - `quantity`: entero aleatorio 1-10.
-- `price`: decimal aleatorio dentro de un rango por categoría (ej. Electrónica más caro que Moda), usando `Faker.pydecimal` o `random.uniform` con redondeo a 2 decimales.
+- `price`: decimal aleatorio dentro del rango `price_min`-`price_max` de la categoría
+  elegida (declarado en el YAML, ej. Electrónica más caro que Moda), con redondeo a 2
+  decimales.
 - `store` **no** se genera aquí: lo asigna la Lambda según la división de origen (SPEC-002).
 - `total` **no** se genera aquí: se recalcula en la Lambda (SPEC-002, "Reglas básicas de transformación").
 
@@ -138,14 +194,14 @@ Implementado en `common.py` como una función `maybe_corrupt(row: dict, error_ra
 | Encoding irregular (solo CSV) | Insertar un carácter fuera de UTF-8/Latin-1 en `product`. |
 
 - La proporción de filas corrompidas por archivo es `--error-rate` (default 5%), aplicada por muestreo aleatorio sobre el total de filas (`--rows`).
-- El tipo de corrupción a aplicar en cada fila afectada se elige aleatoriamente entre los tipos de la tabla anterior (equiprobable), salvo "Encoding irregular", que solo aplica a Electrónica y Hogar (divisiones CSV).
+- El tipo de corrupción a aplicar en cada fila afectada se elige aleatoriamente entre los tipos de la tabla anterior (equiprobable), salvo "Encoding irregular", que solo aplica a Electrónica (única división CSV).
 - Este comportamiento es el que SPEC-002 y SPEC-006 asumen como fuente de las filas que terminan en `quarantine/`.
 
 ---
 
 # Carga hacia Amazon S3
 
-- Tras escribir el archivo localmente en `--output-dir`, si `--upload` está activo (default), el script lo sube a Bronze usando boto3, con la convención de ruta definida en SPEC-003 (partición por división y luego fecha):
+- Tras escribir el archivo localmente en `--output-dir`, si `--upload` está activo (opt-in explícito; el default es `--no-upload`, generación local únicamente), el script lo sube a Bronze usando boto3, con la convención de ruta definida en SPEC-003 (partición por división y luego fecha):
 
 ```
 s3://<bucket>/bronze/<division>/date=<fecha>/<division>_<fecha>.<ext>

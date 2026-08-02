@@ -5,7 +5,7 @@ set -euo pipefail
 # docker/Dockerfile (SPEC-005 / SPEC-004 "Flujo de despliegue"). Requires the
 # ECR repositories to already exist (first `terraform apply`, SPEC-004).
 
-DIVISIONS=(electronica supermercado moda hogar marketplace)
+DIVISIONS=(electronica supermercado moda marketplace)
 IMAGE_TAG=$(git rev-parse --short HEAD)
 REGION="${AWS_REGION:-us-east-1}"
 
@@ -38,4 +38,4 @@ done
 
 echo ""
 echo "All images pushed with tag: ${IMAGE_TAG}"
-echo "Update terraform.tfvars: lambda_image_tag = { electronica = \"${IMAGE_TAG}\", supermercado = \"${IMAGE_TAG}\", moda = \"${IMAGE_TAG}\", hogar = \"${IMAGE_TAG}\", marketplace = \"${IMAGE_TAG}\" }"
+echo "Update terraform.tfvars: lambda_image_tag = { electronica = \"${IMAGE_TAG}\", supermercado = \"${IMAGE_TAG}\", moda = \"${IMAGE_TAG}\", marketplace = \"${IMAGE_TAG}\" }"

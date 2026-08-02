@@ -87,7 +87,7 @@ variable "budget_alert_email" {
 variable "divisions" {
   description = "RetailCorp divisions, one Lambda/ECR/S3-notification-filter per division."
   type        = list(string)
-  default     = ["electronica", "supermercado", "moda", "hogar", "marketplace"]
+  default     = ["electronica", "supermercado", "moda", "marketplace"]
 }
 
 variable "data_bucket_force_destroy" {
@@ -103,7 +103,6 @@ variable "lambda_image_tag" {
     electronica  = "placeholder"
     supermercado = "placeholder"
     moda         = "placeholder"
-    hogar        = "placeholder"
     marketplace  = "placeholder"
   }
 }

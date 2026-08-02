@@ -35,7 +35,6 @@ Como consecuencia, el equipo de Data Engineering recibe múltiples formatos que 
 | Electrónica | CSV |
 | Supermercado | Excel (.xlsx) |
 | Moda | JSON |
-| Hogar | CSV |
 | Marketplace | PDF |
 
 Todos los archivos llegan diariamente al Data Lake.
@@ -100,7 +99,7 @@ Capas:
 
 ## AWS Lambda
 
-Procesamiento automático de cada archivo. Se despliega **una función Lambda por división/formato** (5 en total), cada una empaquetada en su propia imagen Docker con el parser correspondiente.
+Procesamiento automático de cada archivo. Se despliega **una función Lambda por división/formato** (4 en total, una por formato: CSV, Excel, JSON, PDF), cada una empaquetada en su propia imagen Docker con el parser correspondiente.
 
 Responsabilidades:
 

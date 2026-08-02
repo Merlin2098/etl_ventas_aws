@@ -28,8 +28,8 @@ infra/
 ├── terraform.tfvars.example
 └── modules/
     ├── s3_data_lake/          # buckets bronze, gold, quarantine
-    ├── lambda_ingestion/       # 5 funciones Lambda + sus IAM roles + event notifications
-    ├── ecr/                    # 5 repositorios ECR (uno por división)
+    ├── lambda_ingestion/       # 4 funciones Lambda + sus IAM roles + event notifications
+    ├── ecr/                    # 4 repositorios ECR (uno por división)
     ├── glue_catalog/           # Glue Database + Crawler
     └── athena/                 # Athena Workgroup + resultados
 ```
@@ -50,17 +50,17 @@ Cada módulo expone `log_group_name`, `log_group_arn` y el/los `resource_arn` re
 
 ## `modules/ecr`
 
-- Un repositorio ECR por división (5 repositorios: `electronica`, `supermercado`, `moda`, `hogar`, `marketplace`).
+- Un repositorio ECR por división (4 repositorios: `electronica`, `supermercado`, `moda`, `marketplace`).
 - `image_scanning_configuration` habilitado (escaneo de vulnerabilidades por defecto).
 - Terraform gestiona únicamente el repositorio; **no gestiona el build ni el push de la imagen** (ver "Flujo de despliegue").
 
 ## `modules/lambda_ingestion`
 
-- 5 funciones Lambda (`aws_lambda_function`), una por división, cada una:
+- 4 funciones Lambda (`aws_lambda_function`), una por división, cada una:
   - `package_type = "Image"`, referenciando el URI de la imagen ya publicada en el repositorio ECR correspondiente.
   - Rol IAM de ejecución dedicado por función (least privilege): permisos de lectura sobre `bronze/`, escritura sobre `gold/` y `quarantine/`, y `logs:CreateLogStream`/`logs:PutLogEvents` sobre su propio log group.
   - Variables de entorno específicas de división (detalle en SPEC-005): nombre de bucket, prefijos de gold/quarantine, nombre de división.
-- Siguiendo **Policy 010** (IAM cross-module placement): el permiso `lambda:InvokeFunction` que S3 necesita para invocar cada Lambda (`aws_lambda_permission`, con `source_arn` apuntando al bucket) se declara en `modules/lambda_ingestion` (donde vive la función), no en `modules/s3_data_lake`. El módulo S3 recibe los ARNs de las 5 Lambdas como variables de entrada para configurar `aws_s3_bucket_notification`.
+- Siguiendo **Policy 010** (IAM cross-module placement): el permiso `lambda:InvokeFunction` que S3 necesita para invocar cada Lambda (`aws_lambda_permission`, con `source_arn` apuntando al bucket) se declara en `modules/lambda_ingestion` (donde vive la función), no en `modules/s3_data_lake`. El módulo S3 recibe los ARNs de las 4 Lambdas como variables de entrada para configurar `aws_s3_bucket_notification`.
 - `aws_cloudwatch_log_group` explícito por función, con `retention_in_days` (Policy 009), en vez de depender del log group implícito de Lambda.
 
 ## `modules/glue_catalog`
@@ -82,11 +82,11 @@ Resumen de recursos nuevos a introducir (además de los ya existentes en `infra/
 
 - `aws_s3_bucket` (datos: bronze/gold/quarantine, y resultados de Athena)
 - `aws_s3_bucket_notification`
-- `aws_ecr_repository` × 5
-- `aws_lambda_function` × 5
-- `aws_lambda_permission` × 5
-- `aws_iam_role` + `aws_iam_role_policy` por Lambda (5)
-- `aws_cloudwatch_log_group` por Lambda (5)
+- `aws_ecr_repository` × 4
+- `aws_lambda_function` × 4
+- `aws_lambda_permission` × 4
+- `aws_iam_role` + `aws_iam_role_policy` por Lambda (4)
+- `aws_cloudwatch_log_group` por Lambda (4)
 - `aws_glue_catalog_database`
 - `aws_glue_crawler`
 - `aws_iam_role` + `aws_iam_role_policy` para el Crawler
@@ -100,7 +100,7 @@ Nuevas variables en el módulo raíz (además de las existentes en `variables.tf
 
 | Variable | Tipo | Descripción |
 |----------|------|-------------|
-| `divisions` | `list(string)` | Lista de divisiones (`electronica`, `supermercado`, `moda`, `hogar`, `marketplace`), usada para generar los recursos repetidos vía `for_each`. |
+| `divisions` | `list(string)` | Lista de divisiones (`electronica`, `supermercado`, `moda`, `marketplace`), usada para generar los recursos repetidos vía `for_each`. |
 | `data_bucket_force_destroy` | `bool` | Default `true`; permite destruir los buckets de datos con objetos dentro. |
 | `lambda_image_tag` | `map(string)` | Tag/digest de la imagen ECR a desplegar por división; se actualiza tras cada build manual (ver "Flujo de despliegue"). |
 | `lambda_memory_size` / `lambda_timeout` | `number` | Configuración de recursos de cada función Lambda. |
@@ -166,7 +166,7 @@ modules/athena
 ```
 
 - `lambda_ingestion` depende de `ecr` (necesita el repositorio para referenciar la imagen).
-- `s3_data_lake` depende de `lambda_ingestion` (necesita los ARNs de las 5 funciones para configurar las notificaciones y otorgar `lambda:InvokeFunction`, ver Policy 010).
+- `s3_data_lake` depende de `lambda_ingestion` (necesita los ARNs de las 4 funciones para configurar las notificaciones y otorgar `lambda:InvokeFunction`, ver Policy 010).
 - `glue_catalog` depende de `s3_data_lake` (el Crawler apunta a la ruta de `gold/`).
 - `athena` depende de `glue_catalog` (el Workgroup consulta la base de datos catalogada).
 

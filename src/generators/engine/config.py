@@ -2,14 +2,45 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 from typing import Callable
 
-from src.generators.common import format_date_free_text
-from src.generators.writers.csv_writer import write_csv
-from src.generators.writers.excel_writer import write_excel
-from src.generators.writers.json_writer import write_json
-from src.generators.writers.pdf_writer import write_pdf
+import yaml
+
+from src.generators.engine.common import format_date_free_text
+from src.generators.engine.writers.csv_writer import write_csv
+from src.generators.engine.writers.excel_writer import write_excel
+from src.generators.engine.writers.json_writer import write_json
+from src.generators.engine.writers.pdf_writer import write_pdf
+
+# The single source of truth for what varies per division (format, date
+# pattern, extension, product catalog) — sits one level up from engine/, next
+# to __init__.py, so it's the first thing visible when opening src/generators/.
+CONFIG_PATH = Path(__file__).resolve().parents[1] / "detalle-data.yaml"
+
+# format (YAML) -> writer function. Adding a new source format still requires
+# a writer implementation, but the division -> format mapping is data-driven.
+FORMAT_WRITERS: dict[str, Callable[[list[dict], Path], None]] = {
+    "csv": write_csv,
+    "excel": write_excel,
+    "json": write_json,
+    "pdf": write_pdf,
+}
+
+# date_format (YAML) -> formatter function. "iso8601" and "free_text_es" are
+# named formats (not strftime patterns); anything else is passed to strftime.
+_NAMED_DATE_FORMATTERS: dict[str, Callable[[datetime.date], str]] = {
+    "iso8601": lambda d: d.isoformat(),
+    "free_text_es": format_date_free_text,
+}
+
+
+@dataclass
+class CategoryConfig:
+    products: list[str]
+    price_min: Decimal
+    price_max: Decimal
 
 
 @dataclass
@@ -17,34 +48,37 @@ class DivisionConfig:
     writer: Callable[[list[dict], Path], None]
     date_formatter: Callable[[datetime.date], str]
     ext: str
+    categories: dict[str, CategoryConfig]
 
 
-DIVISIONS: dict[str, DivisionConfig] = {
-    "electronica": DivisionConfig(
-        writer=write_csv,
-        date_formatter=lambda d: d.strftime("%d/%m/%Y"),
-        ext="csv",
-    ),
-    "supermercado": DivisionConfig(
-        writer=write_excel,
-        date_formatter=lambda d: d.strftime("%m-%d-%Y"),
-        ext="xlsx",
-    ),
-    "moda": DivisionConfig(
-        writer=write_json,
-        date_formatter=lambda d: d.isoformat(),
-        ext="json",
-    ),
-    "hogar": DivisionConfig(
-        writer=write_csv,
-        date_formatter=lambda d: d.strftime("%Y/%m/%d"),
-        ext="csv",
-    ),
-    "marketplace": DivisionConfig(
-        writer=write_pdf,
-        date_formatter=format_date_free_text,
-        ext="pdf",
-    ),
-}
+def _build_date_formatter(date_format: str) -> Callable[[datetime.date], str]:
+    named = _NAMED_DATE_FORMATTERS.get(date_format)
+    if named is not None:
+        return named
+    return lambda d, fmt=date_format: d.strftime(fmt)
 
-DIVISION_ORDER = ["electronica", "supermercado", "moda", "hogar", "marketplace"]
+
+def _load_divisions(config_path: Path) -> tuple[dict[str, DivisionConfig], list[str]]:
+    raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+
+    divisions: dict[str, DivisionConfig] = {}
+    for division, spec in raw["divisions"].items():
+        categories = {
+            name: CategoryConfig(
+                products=cat["products"],
+                price_min=Decimal(str(cat["price_min"])),
+                price_max=Decimal(str(cat["price_max"])),
+            )
+            for name, cat in spec["categories"].items()
+        }
+        divisions[division] = DivisionConfig(
+            writer=FORMAT_WRITERS[spec["format"]],
+            date_formatter=_build_date_formatter(spec["date_format"]),
+            ext=spec["ext"],
+            categories=categories,
+        )
+
+    return divisions, list(raw["division_order"])
+
+
+DIVISIONS, DIVISION_ORDER = _load_divisions(CONFIG_PATH)

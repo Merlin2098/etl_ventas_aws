@@ -32,7 +32,7 @@ S3 Event Notification (ObjectCreated)
         └── Filas inválidas ───────► Amazon S3 (Quarantine)
 ```
 
-Cada división tiene su propia función Lambda (5 en total), cada una empaquetada en una imagen Docker independiente con el parser de su formato. No existe una Lambda única con router interno: la selección de parser queda resuelta por la propia suscripción del evento S3 a cada función (ver "Eventos de S3").
+Cada división tiene su propia función Lambda (4 en total), cada una empaquetada en una imagen Docker independiente con el parser de su formato. No existe una Lambda única con router interno: la selección de parser queda resuelta por la propia suscripción del evento S3 a cada función (ver "Eventos de S3").
 
 ---
 
@@ -68,7 +68,6 @@ Ejemplo:
 s3://<bucket>/bronze/electronica/date=2026-08-01/electronica_2026-08-01.csv
 s3://<bucket>/bronze/supermercado/date=2026-08-01/supermercado_2026-08-01.xlsx
 s3://<bucket>/bronze/moda/date=2026-08-01/moda_2026-08-01.json
-s3://<bucket>/bronze/hogar/date=2026-08-01/hogar_2026-08-01.csv
 s3://<bucket>/bronze/marketplace/date=2026-08-01/marketplace_2026-08-01.pdf
 ```
 

@@ -19,7 +19,6 @@ Definir el contrato de datos que utilizará todo el proyecto, desde los archivos
 | Electrónica | CSV           | `electronica`    |
 | Supermercado | Excel (.xlsx) | `supermercado`   |
 | Moda         | JSON          | `moda`           |
-| Hogar        | CSV           | `hogar`          |
 | Marketplace  | PDF           | `marketplace`    |
 
 El campo `store` del esquema unificado identifica la división de origen; no existen tiendas/sucursales adicionales dentro de cada división en el alcance de este laboratorio.
@@ -86,7 +85,7 @@ duplicadas al catalogar (ver SPEC-005, "Conversión a Parquet").
 | -------- | --------------------- | -------- | -------------------------- | ----------------------------------------------------------------------------------------------- |
 | sale_id  | string (UUID)         | No       | Columna Parquet            | Identificador único de la venta                                                              |
 | date     | date (`YYYY-MM-DD`) | No       | Partición Hive (`date=`)  | Fecha de la venta, normalizada                                                                |
-| store    | string                | No       | Partición Hive (`store=`) | División de origen (`electronica`, `supermercado`, `moda`, `hogar`, `marketplace`) |
+| store    | string                | No       | Partición Hive (`store=`) | División de origen (`electronica`, `supermercado`, `moda`, `marketplace`) |
 | category | string                | No       | Columna Parquet            | Categoría del producto                                                                       |
 | product  | string                | No       | Columna Parquet            | Nombre del producto                                                                           |
 | quantity | integer               | No       | Columna Parquet            | Cantidad vendida, entero positivo                                                             |

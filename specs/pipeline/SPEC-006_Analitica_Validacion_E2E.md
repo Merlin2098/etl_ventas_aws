@@ -92,8 +92,8 @@ ORDER BY category, revenue DESC;
 |----------|-------|---------------------|
 | ¿Qué categoría vende más? | "Ventas por categoría" | Una fila por categoría presente en los datos generados, ordenadas de mayor a menor `total_sales`. |
 | ¿Cuáles son los 10 productos más vendidos? | "Top 10 productos" | Exactamente 10 filas (o menos si hay menos de 10 productos distintos en el dataset). |
-| ¿Qué división genera más ingresos? | "Ventas por tienda" | 5 filas, una por división (`electronica`, `supermercado`, `moda`, `hogar`, `marketplace`). |
-| ¿Cuál es el ticket promedio por división? | "Ticket promedio" | 5 filas con `avg_ticket > 0`. |
+| ¿Qué división genera más ingresos? | "Ventas por tienda" | 4 filas, una por división (`electronica`, `supermercado`, `moda`, `marketplace`). |
+| ¿Cuál es el ticket promedio por división? | "Ticket promedio" | 4 filas con `avg_ticket > 0`. |
 | ¿Cómo se distribuyen las ventas en el tiempo? | "Ventas por día" | Una fila por cada fecha para la que se generaron y procesaron archivos. |
 
 ---
@@ -102,11 +102,11 @@ ORDER BY category, revenue DESC;
 
 ## Criterios de aceptación
 
-El laboratorio se considera funcionando correctamente cuando, tras ejecutar los 5 generadores para una fecha dada:
+El laboratorio se considera funcionando correctamente cuando, tras ejecutar los 4 generadores para una fecha dada:
 
-1. Los 5 archivos de origen existen en `bronze/<division>/date=<fecha>/`.
+1. Los 4 archivos de origen existen en `bronze/<division>/date=<fecha>/`.
 2. Cada archivo disparó su Lambda correspondiente (evidencia: logs de CloudWatch, ver abajo).
-3. Existen archivos Parquet en `gold/store=<division>/date=<fecha>/` para las 5 divisiones.
+3. Existen archivos Parquet en `gold/store=<division>/date=<fecha>/` para las 4 divisiones.
 4. Existen archivos de error en `quarantine/store=<division>/date=<fecha>/` para las filas inválidas generadas intencionalmente (SPEC-002).
 5. El Glue Crawler, tras ejecutarse, registra la tabla `sales` con las particiones de la fecha procesada.
 6. Las queries de la sección anterior se ejecutan sin error en Athena y devuelven resultados consistentes con los criterios de la tabla "Preguntas de negocio".
@@ -139,7 +139,7 @@ El laboratorio se considera funcionando correctamente cuando, tras ejecutar los 
 Para dar por validado el laboratorio durante el webinar, se recopila:
 
 1. Resultados (capturas o export) de las queries Athena de la sección anterior.
-2. Logs de CloudWatch de las 5 Lambdas para la invocación de prueba.
+2. Logs de CloudWatch de las 4 Lambdas para la invocación de prueba.
 3. Conteo de filas Gold vs Bronze por división (manual o vía query auxiliar `SELECT store, COUNT(*) FROM sales WHERE date = '<fecha>' GROUP BY store`, comparado contra el conteo de filas del archivo de origen).
 4. Listado de objetos en `quarantine/store=<division>/date=<fecha>/` con su contenido, confirmando que los errores intencionales fueron capturados.
 5. Resultado en verde de `tests/aws/` (ver "Tests automatizados de infraestructura").

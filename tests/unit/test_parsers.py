@@ -6,17 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from src.generators.common import build_faker, generate_row
-from src.generators.divisions import DIVISIONS
+from src.generators.engine.common import build_faker, generate_row
+from src.generators.engine.config import DIVISIONS
 from src.lambda_ingestion.electronica.parser import CsvSalesParser
-from src.lambda_ingestion.hogar.parser import HogarSalesParser
 from src.lambda_ingestion.marketplace.parser import PdfSalesParser
 from src.lambda_ingestion.moda.parser import JsonSalesParser
 from src.lambda_ingestion.supermercado.parser import ExcelSalesParser
 
 PARSERS = {
     "electronica": CsvSalesParser(),
-    "hogar": HogarSalesParser(),
     "supermercado": ExcelSalesParser(),
     "moda": JsonSalesParser(),
     "marketplace": PdfSalesParser(),
@@ -28,7 +26,7 @@ def _generate_clean_rows(division: str, date: datetime.date, count: int) -> list
     config = DIVISIONS[division]
     rows = []
     for _ in range(count):
-        record = generate_row(division, date, fake)
+        record = generate_row(division, date, fake, config.categories)
         row = {
             "sale_id": record.sale_id,
             "date": config.date_formatter(record.date),
