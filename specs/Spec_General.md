@@ -59,14 +59,14 @@ Construir un pipeline completamente serverless capaz de:
 Python Generators
         │
         ▼
- Amazon S3 (Raw)
+ Amazon S3 (Bronze)
 
         │
 S3 Event Notification
 
         │
         ▼
- Lambda (Docker)
+ Lambda (Docker) — una función por división/formato
 
         │
         ▼
@@ -91,14 +91,14 @@ Almacenamiento del Data Lake.
 
 Capas:
 
-- Raw
+- Bronze
 - Gold
 
 ---
 
 ## AWS Lambda
 
-Procesamiento automático de cada archivo.
+Procesamiento automático de cada archivo. Se despliega **una función Lambda por división/formato** (5 en total), cada una empaquetada en su propia imagen Docker con el parser correspondiente.
 
 Responsabilidades:
 

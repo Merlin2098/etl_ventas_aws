@@ -1,8 +1,8 @@
 # Planificación Documentaria - Webinar AWS Retail Data Lake
 
-**Proyecto:** Data Lake Serverless para Retail con AWS  
-**Metodología:** Spec Driven Development (SDD)  
-**Cantidad de SPECs:** 6  
+**Proyecto:** Data Lake Serverless para Retail con AWS
+**Metodología:** Spec Driven Development (SDD)
+**Cantidad de SPECs:** 6
 **Objetivo:** Definir el conjunto mínimo de especificaciones necesarias para construir la demo completa mediante IA (Claude Code / ChatGPT) sin generar documentación innecesaria.
 
 ---
@@ -37,7 +37,7 @@ Definir el contrato de datos que utilizará todo el proyecto, desde los archivos
 ## Contenido esperado
 
 - Divisiones de negocio
-- Formatos soportados (CSV, Excel, JSON y PDF)
+- Formatos soportados (CSV, Excel, JSON )
 - Estructura de cada dataset
 - Convenciones de nombres
 - Datos sintéticos
@@ -160,14 +160,14 @@ SPEC-001
 
 # Orden recomendado de elaboración
 
-| Orden | SPEC | Prioridad |
-|--------|------|-----------|
-| 1 | SPEC-001 - Visión General del Proyecto | Alta |
-| 2 | SPEC-002 - Modelo de Datos y Datasets | Alta |
-| 3 | SPEC-003 - Pipeline de Procesamiento | Alta |
-| 4 | SPEC-004 - Infraestructura Terraform | Media |
-| 5 | SPEC-005 - Implementación de la Lambda | Media |
-| 6 | SPEC-006 - Analítica y Validación End-to-End | Media |
+| Orden | SPEC                                           | Prioridad |
+| ----- | ---------------------------------------------- | --------- |
+| 1     | SPEC-001 - Visión General del Proyecto        | Alta      |
+| 2     | SPEC-002 - Modelo de Datos y Datasets          | Alta      |
+| 3     | SPEC-003 - Pipeline de Procesamiento           | Alta      |
+| 4     | SPEC-004 - Infraestructura Terraform           | Media     |
+| 5     | SPEC-005 - Implementación de la Lambda        | Media     |
+| 6     | SPEC-006 - Analítica y Validación End-to-End | Media     |
 
 ---
 

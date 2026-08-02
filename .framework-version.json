@@ -1,8 +1,8 @@
 {
-  "framework_version": "0.3.0",
-  "installed_at": "2026-07-31T20:42:39.550715+00:00",
+  "framework_version": "0.3.1",
+  "installed_at": "2026-08-01T17:45:55.330258+00:00",
   "include_structure": true,
-  "tree_digest": "639dc27e948506538e6bb212b9d62e4bc87efc40995245cdf143d4ed17ed2407",
+  "tree_digest": "f3c8f503122b504304177a1d4a939b2f44ab9440678809a56868ad3e78ea9f82",
   "framework_manifest": {
     ".gitattributes": {
       "sha256": "a88181cb7302f5c1d7c4c73fd447a2e5d492432009e336a4361275be6821a29b",
@@ -25,7 +25,7 @@
       "ownership": "managed"
     },
     "VERSION": {
-      "sha256": "d915cc95d6ca8f47ae297713ed46d4e5c5d99ddd29fc3c61e263bdf305f2b5b0",
+      "sha256": "79e3f22ca37c7fdf4c29ae3648d6b008c3cb6547260a453409275470919dc674",
       "ownership": "managed"
     },
     "ai/__init__.py": {
@@ -53,7 +53,7 @@
       "ownership": "managed"
     },
     "ai/domains/index.md": {
-      "sha256": "fd57a48c6144ee143e47ebdfdff303f068ac988bc62c35cd5993aa1b2f59cbb7",
+      "sha256": "5016100b6c6183c3c874f987e6690b02c11105ae9332edee41c8548acef6ed20",
       "ownership": "managed"
     },
     "ai/domains/python.md": {
@@ -69,7 +69,7 @@
       "ownership": "managed"
     },
     "ai/domains/terraform.md": {
-      "sha256": "6e6fda92b9a02dd7ee1e10432603076300cf6a0c4d6c974a8b94e7f5ae06acf8",
+      "sha256": "255d70763db23a2291f1738a79c0ffae937bd18d48103871164cc063f6283f11",
       "ownership": "managed"
     },
     "ai/hooks/__init__.py": {
@@ -81,7 +81,7 @@
       "ownership": "managed"
     },
     "ai/policies/global.md": {
-      "sha256": "8759ac4ff4e87d981a60854f6ed5c6d507606e485c6b3d7e6cb5c43837889f85",
+      "sha256": "b34c0f5373a4dc29158d8f952b8008d333e94362f3556a0958f12a3dd5b427c3",
       "ownership": "managed"
     },
     "ai/runtime/__init__.py": {
@@ -105,7 +105,7 @@
       "ownership": "managed"
     },
     "ai/skills.yaml": {
-      "sha256": "16f0f10070d976b000f4b828b0e60c439169c133a6a2beda4315db5765471316",
+      "sha256": "1e25ae53e87c92217e22fe61983e09c03e3ce87b7856ce11a6995aa1b8e7b91a",
       "ownership": "managed"
     },
     "ai/skills/aws/account_bootstrap_console.md": {
@@ -165,7 +165,7 @@
       "ownership": "managed"
     },
     "ai/skills/aws/lambda_functions.md": {
-      "sha256": "dc64422430918c2e0885397f695667753d97b94c3b12391a538d8bf143d10b31",
+      "sha256": "e477fdece40f819827d90a979d4bca24d00fed53687a157795f96527598e6c5b",
       "ownership": "managed"
     },
     "ai/skills/aws/lambda_packaging.md": {
@@ -297,7 +297,7 @@
       "ownership": "managed"
     },
     "ai/skills/shell/script_quality.md": {
-      "sha256": "8e11ab0b09c7cafbe5501c24b2f3c9f825f14a16963cd7711f05778f66fc60c1",
+      "sha256": "a0f48b3798763508d483c1a53d433d06b3dae9b9c666949dc5835f5d296aa85d",
       "ownership": "managed"
     },
     "ai/skills/shell/script_security.md": {
@@ -308,24 +308,16 @@
       "sha256": "8bf7f841abdd8f3a737292f0cd012a3176ee5cd04ae607b5be83ab5700d2f481",
       "ownership": "managed"
     },
-    "ai/skills/terraform/environment_promotion.md": {
-      "sha256": "20525ce1a50f46cbeb43a0fa89539d67f3d26ea3c37113da17268f24b50d94e7",
-      "ownership": "managed"
-    },
-    "ai/skills/terraform/modules.md": {
-      "sha256": "95a9fe1459d1c74cc22862999cbfe08e2d5a538719b389c7d03052a11c4d7626",
-      "ownership": "managed"
-    },
     "ai/skills/terraform/state_management.md": {
       "sha256": "ae5973a82ec5bc887f5f8f3964f8a471b242476bbffe7fb7f6b69964f89f5dc4",
       "ownership": "managed"
     },
     "ai/skills/terraform/terraform_governance.md": {
-      "sha256": "20fbbef38fe1e1ccb516ca9c8e0a8ae814776b846079e4bc7bc6110989059ddd",
+      "sha256": "0a12d6a767443c78704129c05e6ef8edee59e8e237d312bd3134d4c063bdf709",
       "ownership": "managed"
     },
     "ai/skills/terraform/terraform_observability.md": {
-      "sha256": "b5a0200c48c62d7cb1f5ae5e1c69104e76f3ecd45f0da14993a9c0477fcda1bc",
+      "sha256": "dff65c5c77fa05d3ba249719944e690262df72df2b748955de263e10b29238a9",
       "ownership": "managed"
     },
     "ai/tools/__init__.py": {
