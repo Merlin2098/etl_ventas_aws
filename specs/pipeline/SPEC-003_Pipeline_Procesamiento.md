@@ -40,7 +40,7 @@ Cada división tiene su propia función Lambda (5 en total), cada una empaquetad
 
 - Cada división tiene un generador Python independiente (ver SPEC-002).
 - Durante el webinar, la llegada diaria de archivos se simula mediante **ejecución manual** de los generadores: el presentador corre cada script (o los cinco en secuencia) para mostrar el pipeline reaccionando en vivo, archivo por archivo.
-- No existe un orquestador automático ni un scheduler en el alcance de esta demo; queda como evolución futura (SPEC-001, sección "Evoluciones futuras": EventBridge Scheduler).
+- No existe un orquestador automático ni un scheduler en el alcance de esta demo; queda como evolución futura (SPEC-001 - Visión General, sección "Evoluciones futuras": EventBridge Scheduler).
 
 ---
 
@@ -56,23 +56,28 @@ Cada división tiene su propia función Lambda (5 en total), cada una empaquetad
 ## Capa Bronze
 
 - Los datos se reciben **tal cual** son generados, sin transformación.
-- Partición **solo por fecha** (sin partición por división):
+- Partición por **división y fecha** (la división primero, en el path):
 
 ```
-s3://<bucket>/bronze/date=YYYY-MM-DD/<division>_<YYYY-MM-DD>.<ext>
+s3://<bucket>/bronze/<division>/date=YYYY-MM-DD/<division>_<YYYY-MM-DD>.<ext>
 ```
 
 Ejemplo:
 
 ```
-s3://<bucket>/bronze/date=2026-08-01/electronica_2026-08-01.csv
-s3://<bucket>/bronze/date=2026-08-01/supermercado_2026-08-01.xlsx
-s3://<bucket>/bronze/date=2026-08-01/moda_2026-08-01.json
-s3://<bucket>/bronze/date=2026-08-01/hogar_2026-08-01.csv
-s3://<bucket>/bronze/date=2026-08-01/marketplace_2026-08-01.pdf
+s3://<bucket>/bronze/electronica/date=2026-08-01/electronica_2026-08-01.csv
+s3://<bucket>/bronze/supermercado/date=2026-08-01/supermercado_2026-08-01.xlsx
+s3://<bucket>/bronze/moda/date=2026-08-01/moda_2026-08-01.json
+s3://<bucket>/bronze/hogar/date=2026-08-01/hogar_2026-08-01.csv
+s3://<bucket>/bronze/marketplace/date=2026-08-01/marketplace_2026-08-01.pdf
 ```
 
-La división queda identificada en el nombre de archivo (necesaria para que la Lambda seleccione el parser correcto, ver SPEC-005).
+La división queda identificada tanto en el prefijo del path como en el nombre de archivo.
+El prefijo (`bronze/<division>/`) es lo que permite filtrar la S3 Event Notification por
+división (ver "Eventos de S3"): al ser un prefijo **literal** y estático, `filter_prefix`
+puede aislarlo sin depender de la fecha, que es variable. Con un layout `bronze/date=.../`
+(fecha primero) esto no sería posible, porque la fecha cambia en cada ejecución y ningún
+prefijo fijo podría aislar la división.
 
 ## Capa Gold
 
@@ -98,7 +103,8 @@ s3://<bucket>/quarantine/store=<division>/date=YYYY-MM-DD/errors-*.json
 
 # Eventos de S3
 
-- Se configura una **S3 Event Notification** (`s3:ObjectCreated:*`) sobre el prefijo `bronze/`, filtrada por patrón de nombre de archivo (`filter_prefix`/`filter_suffix`, ej. `electronica_` para la Lambda de Electrónica) para invocar la función Lambda correspondiente a cada división.
+- Se configura una **S3 Event Notification** (`s3:ObjectCreated:*`) sobre el bucket de datos, con un bloque `lambda_function` por división, filtrado por `filter_prefix = "bronze/<division>/"` (ej. `filter_prefix = "bronze/electronica/"` para la Lambda de Electrónica) para invocar la función Lambda correspondiente.
+- Al ser un prefijo literal y estático (sin depender de la fecha, que es variable en cada archivo), `filter_prefix` aísla la división de forma inequívoca — ver "Organización del Data Lake" para el razonamiento completo.
 - No se utiliza SQS como buffer intermedio: cada archivo dispara una invocación independiente de su Lambda dedicada (modelo simple, adecuado para el volumen y propósito didáctico de esta demo).
 
 ---
@@ -112,9 +118,9 @@ s3://<bucket>/quarantine/store=<division>/date=YYYY-MM-DD/errors-*.json
 
 # Detección del tipo de archivo
 
-- La selección de la función Lambda correcta ocurre a nivel de infraestructura (filtro de la S3 Event Notification por nombre de archivo), no dentro de la función.
+- La selección de la función Lambda correcta ocurre a nivel de infraestructura (filtro de la S3 Event Notification por prefijo `bronze/<division>/`), no dentro de la función.
 - Dentro de cada Lambda, el formato es conocido de antemano (una función = un formato = un parser), por lo que no existe lógica de detección/enrutamiento en tiempo de ejecución.
-- Si un archivo llega a `bronze/` sin coincidir con ningún patrón de nombre configurado, ninguna Lambda se invoca; el archivo queda huérfano en Bronze (ver "Flujo de errores").
+- Si un archivo llega a `bronze/` bajo un prefijo de división que no coincide con ninguna notificación configurada, ninguna Lambda se invoca; el archivo queda huérfano en Bronze (ver "Flujo de errores").
 
 ---
 
@@ -131,8 +137,9 @@ s3://<bucket>/quarantine/store=<division>/date=YYYY-MM-DD/errors-*.json
 
 # Escritura en la capa Gold
 
-- Las filas válidas y transformadas se escriben en formato **Parquet** en `gold/store=<division>/date=<fecha>/`.
-- Reprocesar el mismo archivo de origen (mismo `bronze/date=.../<division>_<fecha>.<ext>`) **sobrescribe** el resultado correspondiente en Gold para esa partición división+fecha ("último gana"); no se contempla deduplicación ni versionado de escrituras.
+- Las filas válidas y transformadas se escriben en formato **Parquet** en `gold/store=<division>/date=<fecha>/`, sin las columnas `store` ni `date` dentro del archivo (quedan codificadas en el path como partición Hive; ver SPEC-002 y SPEC-005).
+- Reprocesar el mismo archivo de origen (mismo `bronze/<division>/date=.../<division>_<fecha>.<ext>`) **sobrescribe** el resultado correspondiente en Gold para esa partición división+fecha ("último gana"); no se contempla deduplicación ni versionado de escrituras.
+- Para cumplir "último gana" de forma efectiva, la Lambda **borra los objetos existentes** bajo `gold/store=<division>/date=<fecha>/` antes de escribir el nuevo Parquet de la invocación (delete-then-write). Esto es necesario porque el nombre del archivo Parquet incluye el `request_id` de la invocación (ver SPEC-005) y por lo tanto es distinto en cada reprocesamiento; sin el borrado previo, los archivos se acumularían en la misma partición en vez de sobrescribirse, duplicando filas en las consultas de Athena.
 
 ---
 

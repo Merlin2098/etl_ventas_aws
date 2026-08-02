@@ -92,6 +92,13 @@ DIVISIONS = {
 
 El formato de fecha por división refleja la heterogeneidad definida en SPEC-002 ("Fechas" — varía por división de forma realista); cada writer es responsable de formatear `date` según su propia convención antes de escribirla en el archivo de origen.
 
+`date_format="texto_libre"` (Marketplace) se resuelve como el patrón concreto
+`"<día> de <mes en palabra, español> de <año>"` (ej. `"1 de agosto de 2026"`), generado con
+un mapa fijo de meses en español en `common.py`. Es "texto libre" en el sentido de que no
+es un formato estructurado como `%d/%m/%Y` (requiere un parser dedicado, no `strptime`
+directo), pero el patrón en sí es fijo y determinista — necesario para que el parser PDF
+de la Lambda (SPEC-005, "Parser PDF") pueda normalizarlo de forma confiable.
+
 ---
 
 # Generación de filas
@@ -138,10 +145,10 @@ Implementado en `common.py` como una función `maybe_corrupt(row: dict, error_ra
 
 # Carga hacia Amazon S3
 
-- Tras escribir el archivo localmente en `--output-dir`, si `--upload` está activo (default), el script lo sube a Bronze usando boto3, con la convención de nombre definida en SPEC-003:
+- Tras escribir el archivo localmente en `--output-dir`, si `--upload` está activo (default), el script lo sube a Bronze usando boto3, con la convención de ruta definida en SPEC-003 (partición por división y luego fecha):
 
 ```
-s3://<bucket>/bronze/date=<fecha>/<division>_<fecha>.<ext>
+s3://<bucket>/bronze/<division>/date=<fecha>/<division>_<fecha>.<ext>
 ```
 
 - El nombre de bucket se lee de una variable de entorno (`DATA_BUCKET`), nunca hardcodeado (Policy 003 — Configuration Over Hardcoding), consistente con el resto del framework.

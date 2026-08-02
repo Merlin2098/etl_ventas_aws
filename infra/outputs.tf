@@ -32,3 +32,40 @@ output "budget_alert_sns_arn" {
   description = "SNS topic ARN for budget alerts. Empty string when no alert email is configured."
   value       = var.budget_alert_email != "" ? aws_sns_topic.budget_alerts[0].arn : ""
 }
+
+# --- Retail data lake demo (SPEC-004) ---
+
+output "data_bucket_name" {
+  description = "Name of the data lake bucket (bronze/gold/quarantine/athena-results)."
+  value       = module.s3_data_lake.bucket_name
+}
+
+output "ecr_repository_urls" {
+  description = "ECR repository URL per division."
+  value       = module.ecr.repository_urls
+}
+
+output "lambda_function_arns" {
+  description = "Ingestion Lambda function ARN per division."
+  value       = module.lambda_ingestion.function_arns
+}
+
+output "lambda_log_group_names" {
+  description = "Ingestion Lambda CloudWatch log group name per division."
+  value       = module.lambda_ingestion.log_group_names
+}
+
+output "glue_database_name" {
+  description = "Glue Catalog database name."
+  value       = module.glue_catalog.database_name
+}
+
+output "glue_crawler_name" {
+  description = "Gold layer Glue Crawler name."
+  value       = module.glue_catalog.crawler_name
+}
+
+output "athena_workgroup_name" {
+  description = "Athena workgroup name."
+  value       = module.athena.workgroup_name
+}

@@ -1,4 +1,6 @@
-# Webinar: Data Lake Serverless para Retail con AWS
+# SPEC-001 - Visión General del Proyecto
+
+## Webinar: Data Lake Serverless para Retail con AWS
 
 ## Estado
 

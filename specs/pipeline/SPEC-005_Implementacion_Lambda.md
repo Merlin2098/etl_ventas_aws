@@ -50,28 +50,48 @@ src/
 │       ├── handler.py
 │       └── parser.py           # PDF
 docker/
-├── Dockerfile.electronica
-├── Dockerfile.supermercado
-├── Dockerfile.moda
-├── Dockerfile.hogar
-└── Dockerfile.marketplace
+└── Dockerfile              # único, parametrizado con ARG DIVISION (ver "Uso de Docker y Amazon ECR")
 ```
 
-Cada `Dockerfile.<division>` copia `common/` más la carpeta de su propia división únicamente, manteniendo la imagen de cada Lambda mínima.
+Siguiendo `ai/skills/aws/lambda_packaging.md`, que exige un único `docker/Dockerfile` en
+la raíz del proyecto (no un archivo por división): se usa **un solo Dockerfile** con
+`ARG DIVISION`, invocado 5 veces con distinto `--build-arg DIVISION=<division>` por el
+script de build (ver `scripts/docker_push.sh`, SPEC-004 "Flujo de despliegue"). Cada build
+copia `common/` más la carpeta de la división indicada por el `ARG`, manteniendo la imagen
+resultante mínima igual que con Dockerfiles separados, sin duplicar 5 archivos casi
+idénticos (Policy 008 — simplicidad).
 
 ---
 
 # Uso de Docker y Amazon ECR
 
-Siguiendo `ai/skills/aws/lambda_packaging.md`:
+Adaptando el patrón de `ai/skills/aws/lambda_packaging.md` para soportar 5 divisiones con
+un único Dockerfile parametrizado:
 
 ```dockerfile
 FROM public.ecr.aws/lambda/python:3.12
+ARG DIVISION
+ENV DIVISION=${DIVISION}
 COPY src/lambda_ingestion/requirements-lambda.txt .
 RUN pip install -r requirements-lambda.txt --no-cache-dir
 COPY src/lambda_ingestion/common/ ${LAMBDA_TASK_ROOT}/lambda_ingestion/common/
-COPY src/lambda_ingestion/electronica/ ${LAMBDA_TASK_ROOT}/lambda_ingestion/electronica/
-CMD ["lambda_ingestion.electronica.handler.handler"]
+COPY src/lambda_ingestion/${DIVISION}/ ${LAMBDA_TASK_ROOT}/lambda_ingestion/${DIVISION}/
+CMD ["lambda_ingestion.__DIVISION__.handler.handler"]
+```
+
+**Importante:** Lambda exige que `CMD` esté en forma exec (array JSON), y Docker **no**
+sustituye variables de `ARG`/`ENV` dentro de la forma exec de `CMD` en tiempo de build
+(solo lo hace para `ENV`, `LABEL`, `COPY`, etc.). Por eso `${DIVISION}` no puede usarse
+dentro de `CMD` — se usa el placeholder literal `__DIVISION__`, que
+`scripts/docker_push.sh` reemplaza con `sed` sobre una copia temporal del Dockerfile antes
+de invocar `docker build`, una vez por división:
+
+```bash
+sed "s/__DIVISION__/electronica/g" docker/Dockerfile > /tmp/Dockerfile.electronica
+docker build --platform linux/amd64 --provenance=false \
+  --build-arg DIVISION=electronica \
+  --file /tmp/Dockerfile.electronica \
+  -t "$REPO_URL_ELECTRONICA:$IMAGE_TAG" .
 ```
 
 `requirements-lambda.txt` (compartido, mínimo):
@@ -79,7 +99,6 @@ CMD ["lambda_ingestion.electronica.handler.handler"]
 ```
 boto3
 pyarrow
-pandas
 openpyxl        # parser Excel (supermercado)
 pdfplumber       # parser PDF (marketplace)
 ```
@@ -116,6 +135,14 @@ class SalesParser(ABC):
 
 - Usa **pdfplumber** para extraer texto y tablas del PDF generado por el script sintético de Marketplace.
 - Asume que el PDF contiene una tabla de ventas extraíble vía `page.extract_table()`; si la extracción no produce filas, se trata como archivo ilegible (ver "Manejo de errores", nivel archivo).
+- El formato "texto libre" de `date` declarado en SPEC-007 (`date_format="texto_libre"`) se
+  fija de forma concreta y determinista como: **`"<día> de <mes en palabra, español> de <año>"`**,
+  ej. `"1 de agosto de 2026"`. El parser resuelve el mes mediante un mapa fijo
+  (`{"enero": 1, "febrero": 2, ..., "diciembre": 12}`) en `common/schema.py`, reutilizado
+  por el paso de normalización de fecha (ver "Validaciones"). Una fecha que no siga este
+  patrón (incluida la corrupción intencional "fecha mal formateada" de SPEC-007, ej.
+  `"ayer"`) no matchea el mapa de meses y la fila se enruta a cuarentena por
+  `RowValidationError`, comportamiento esperado.
 
 ---
 
@@ -141,6 +168,31 @@ Implementadas en `common/schema.py`, aplicadas a cada fila cruda devuelta por el
 | `total` | Siempre recalculado como `quantity * price`; cualquier valor de origen se descarta. |
 
 Una fila que falle cualquiera de estas reglas se considera **inválida** y se enruta a cuarentena (no interrumpe el procesamiento del resto del archivo).
+
+## Esquema Parquet explícito
+
+`common/schema.py` declara un `pyarrow.schema()` explícito con los tipos exigidos por
+SPEC-002, para no depender de la inferencia de tipos de pyarrow a partir de `dict` de
+Python (que no garantiza `date` como tipo `date32` ni `price`/`total` como `decimal`):
+
+```python
+import pyarrow as pa
+
+GOLD_SCHEMA = pa.schema([
+    pa.field("sale_id", pa.string(), nullable=False),
+    pa.field("category", pa.string(), nullable=False),
+    pa.field("product", pa.string(), nullable=False),
+    pa.field("quantity", pa.int32(), nullable=False),
+    pa.field("price", pa.decimal128(10, 2), nullable=False),
+    pa.field("total", pa.decimal128(10, 2), nullable=False),
+])
+```
+
+`store` y `date` **no** forman parte de `GOLD_SCHEMA`: son columnas de partición Hive
+(codificadas en el path `gold/store=<division>/date=<fecha>/`, ver SPEC-002/SPEC-003) y
+se excluyen de cada fila normalizada antes de construir la tabla pyarrow, para evitar que
+el Glue Crawler registre columnas duplicadas (una como dato, otra como partición) al
+catalogar la tabla (ver SPEC-006).
 
 ---
 
@@ -179,9 +231,10 @@ class FileParseError(PipelineError):
 
 # Conversión a Parquet
 
-- `common/s3_writer.py` acumula las filas válidas y normalizadas de la invocación en un `pyarrow.Table` y lo escribe como un único archivo Parquet en `gold/store=<division>/date=<fecha>/part-<request_id>.parquet`.
-- Las filas inválidas se escriben como un archivo JSON (lista de objetos `{row, error}`) en `quarantine/store=<division>/date=<fecha>/errors-<request_id>.json`.
-- Si el archivo de origen no produce ninguna fila válida, no se escribe archivo Parquet vacío en Gold (evita particiones vacías que confundan al Glue Crawler).
+- `common/s3_writer.py` acumula las filas válidas y normalizadas de la invocación (sin `store` ni `date`, ver "Esquema Parquet explícito") en un `pyarrow.Table` construido con `GOLD_SCHEMA`, y lo escribe como un único archivo Parquet en `gold/store=<division>/date=<fecha>/part-<request_id>.parquet`.
+- **Antes de escribir**, `s3_writer.py` lista y borra (`list_objects_v2` + `delete_objects`) los objetos existentes bajo `gold/store=<division>/date=<fecha>/` (delete-then-write). Esto implementa el comportamiento "último gana" declarado en SPEC-003: como el nombre del archivo incluye `request_id` (distinto en cada invocación), sin este borrado los reprocesamientos se acumularían en vez de sobrescribirse.
+- Las filas inválidas se escriben como un archivo JSON (lista de objetos `{row, error}`) en `quarantine/store=<division>/date=<fecha>/errors-<request_id>.json`. La cuarentena **no** aplica delete-then-write: los archivos de error de distintas invocaciones se acumulan, preservando el historial de errores para inspección.
+- Si el archivo de origen no produce ninguna fila válida, no se escribe archivo Parquet vacío en Gold (evita particiones vacías que confundan al Glue Crawler). El borrado de la partición existente sí ocurre en este caso (un reprocesamiento que ahora falla completamente no debe dejar datos obsoletos de una corrida anterior).
 
 ---
 

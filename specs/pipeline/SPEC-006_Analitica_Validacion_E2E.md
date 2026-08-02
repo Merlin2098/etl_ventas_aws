@@ -46,7 +46,7 @@ No se usa `MSCK REPAIR TABLE` ni `ALTER TABLE ADD PARTITION` manual: **toda actu
 
 ## Consultas SQL de ejemplo
 
-Alineadas con las "Consultas de negocio" listadas en `Spec_General.md`:
+Alineadas con las "Consultas de negocio" listadas en `SPEC-001_Vision_General.md`:
 
 ```sql
 -- Ventas por categoría
@@ -104,7 +104,7 @@ ORDER BY category, revenue DESC;
 
 El laboratorio se considera funcionando correctamente cuando, tras ejecutar los 5 generadores para una fecha dada:
 
-1. Los 5 archivos de origen existen en `bronze/date=<fecha>/`.
+1. Los 5 archivos de origen existen en `bronze/<division>/date=<fecha>/`.
 2. Cada archivo disparó su Lambda correspondiente (evidencia: logs de CloudWatch, ver abajo).
 3. Existen archivos Parquet en `gold/store=<division>/date=<fecha>/` para las 5 divisiones.
 4. Existen archivos de error en `quarantine/store=<division>/date=<fecha>/` para las filas inválidas generadas intencionalmente (SPEC-002).
@@ -142,11 +142,36 @@ Para dar por validado el laboratorio durante el webinar, se recopila:
 2. Logs de CloudWatch de las 5 Lambdas para la invocación de prueba.
 3. Conteo de filas Gold vs Bronze por división (manual o vía query auxiliar `SELECT store, COUNT(*) FROM sales WHERE date = '<fecha>' GROUP BY store`, comparado contra el conteo de filas del archivo de origen).
 4. Listado de objetos en `quarantine/store=<division>/date=<fecha>/` con su contenido, confirmando que los errores intencionales fueron capturados.
+5. Resultado en verde de `tests/aws/` (ver "Tests automatizados de infraestructura").
+
+---
+
+# Tests automatizados de infraestructura
+
+Siguiendo Policy 009 (Required, `ai/policies/global.md`), toda infraestructura AWS
+desplegada debe incluir tests de humo en `tests/aws/`, generados según la plantilla de
+`ai/skills/aws/aws_smoke_testing.md`:
+
+- `tests/aws/conftest.py`: fixture `aws_client` (boto3, credenciales desde
+  `infra/env/.env.credentials` o variables de entorno) y `tf_outputs` (lee
+  `terraform output -json`). Si no hay credenciales, los tests hacen **skip**, nunca fallan.
+- `tests/aws/test_smoke.py`: valida, contra los outputs reales de Terraform (nunca ARNs
+  hardcodeados) — identidad STS, existencia del bucket de datos, las 5 funciones Lambda,
+  sus 5 log groups, la base de datos y el crawler de Glue, y el workgroup de Athena.
+- Se ejecutan con `python scripts/testing/run_cloud_tests.py` (marcador `pytest.mark.cloud`,
+  ver `pytest.ini`), separados de los tests unitarios (`make test` / `run_pytest.py`), que
+  nunca requieren credenciales AWS.
+
+Estos tests son un complemento a la validación E2E manual descrita arriba, no un
+reemplazo: dan una señal rápida de "la infraestructura existe y es accesible" antes de
+invertir tiempo en la validación funcional completa durante el webinar.
 
 ---
 
 # Fuera de alcance
 
-- Automatización de la validación E2E (tests automatizados contra AWS real); esta demo usa verificación manual/guiada durante el webinar. Tests boto3 en `tests/aws/` (Policy 009) pueden añadirse como evolución futura pero no son parte del alcance mínimo de esta demo.
+- Tests de integración E2E automatizados que generen datos, invoquen Lambdas y verifiquen
+  resultados en Athena sin intervención humana; esta demo usa verificación manual/guiada
+  durante el webinar, complementada por los smoke tests de infraestructura descritos arriba.
 - Alertas o dashboards de monitoreo continuo (QuickSight, CloudWatch Dashboards) — mencionado como evolución futura en SPEC-001.
 - Validación de performance o carga (el volumen de datos es intencionalmente pequeño, ver SPEC-002).

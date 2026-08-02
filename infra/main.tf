@@ -14,6 +14,14 @@ locals {
       CostCenter  = var.cost_center
     }
   )
+
+  # Computed the same way as modules/s3_data_lake's internal bucket name, so
+  # lambda_ingestion can receive the bucket name/ARN as plain strings without
+  # depending on the aws_s3_bucket resource itself (which in turn depends on
+  # lambda_ingestion for its notification ARNs — see module dependency order
+  # below). This avoids a circular module dependency.
+  data_bucket_name = "${local.name_prefix}-${data.aws_caller_identity.current.account_id}-datalake"
+  data_bucket_arn  = "arn:aws:s3:::${local.data_bucket_name}"
 }
 
 resource "aws_s3_bucket" "artifacts" {
@@ -135,6 +143,65 @@ resource "aws_sns_topic_subscription" "budget_email" {
   topic_arn = aws_sns_topic.budget_alerts[0].arn
   protocol  = "email"
   endpoint  = var.budget_alert_email
+}
+
+# --- Retail data lake demo (SPEC-004) ---
+# Deployment order: ecr -> lambda_ingestion -> s3_data_lake -> glue_catalog -> athena.
+# `ecr` must exist and be populated (scripts/docker_push.sh) before the first
+# apply that creates `lambda_ingestion`, since aws_lambda_function with
+# package_type = "Image" requires the image to already exist in ECR.
+
+module "ecr" {
+  source = "./modules/ecr"
+
+  name_prefix = local.name_prefix
+  divisions   = var.divisions
+  tags        = local.common_tags
+}
+
+module "lambda_ingestion" {
+  source = "./modules/lambda_ingestion"
+
+  name_prefix         = local.name_prefix
+  divisions           = var.divisions
+  ecr_repository_urls = module.ecr.repository_urls
+  lambda_image_tag    = var.lambda_image_tag
+  data_bucket_name    = local.data_bucket_name
+  data_bucket_arn     = local.data_bucket_arn
+  lambda_memory_size  = var.lambda_memory_size
+  lambda_timeout      = var.lambda_timeout
+  log_retention_days  = var.log_retention_days
+  tags                = local.common_tags
+}
+
+module "s3_data_lake" {
+  source = "./modules/s3_data_lake"
+
+  name_prefix                  = local.name_prefix
+  account_id                   = data.aws_caller_identity.current.account_id
+  force_destroy                = var.data_bucket_force_destroy
+  divisions                    = var.divisions
+  lambda_function_arns         = module.lambda_ingestion.function_arns
+  lambda_permission_dependency = module.lambda_ingestion.function_names
+  tags                         = local.common_tags
+}
+
+module "glue_catalog" {
+  source = "./modules/glue_catalog"
+
+  name_prefix      = local.name_prefix
+  data_bucket_name = module.s3_data_lake.bucket_name
+  data_bucket_arn  = module.s3_data_lake.bucket_arn
+  crawler_schedule = var.glue_crawler_schedule
+  tags             = local.common_tags
+}
+
+module "athena" {
+  source = "./modules/athena"
+
+  name_prefix      = local.name_prefix
+  data_bucket_name = module.s3_data_lake.bucket_name
+  tags             = local.common_tags
 }
 
 resource "aws_budgets_budget" "monthly" {

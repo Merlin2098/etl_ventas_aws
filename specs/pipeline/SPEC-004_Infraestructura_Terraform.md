@@ -46,7 +46,7 @@ Cada módulo expone `log_group_name`, `log_group_arn` y el/los `resource_arn` re
 - Puede ser un único bucket con tres prefijos (`bronze/`, `gold/`, `quarantine/`) o tres buckets separados; se define como variable del módulo (`use_single_bucket: bool`), con **un único bucket con prefijos** como default por simplicidad (Policy 008 — simplicidad).
 - `force_destroy = true` en los buckets de datos (bronze/gold/quarantine), consistente con el patrón ya usado en el bucket de artifacts (`artifact_bucket_force_destroy`), dado que es un entorno de demo efímero.
 - Bloqueo de acceso público en todos los buckets (Policy 004 — Security By Default), server-side encryption AES256.
-- Notificaciones S3 (`aws_s3_bucket_notification`) sobre el prefijo `bronze/`, con un bloque `lambda_function` por división, filtrado por `filter_prefix`/`filter_suffix` según el patrón de nombre de archivo definido en SPEC-003 (ej. `filter_prefix = "bronze/date=.../electronica_"`).
+- Notificaciones S3 (`aws_s3_bucket_notification`) sobre el bucket de datos, con un bloque `lambda_function` por división, filtrado por `filter_prefix = "bronze/<division>/"` según el layout definido en SPEC-003 (ej. `filter_prefix = "bronze/electronica/"`). Al ser la división el primer segmento del path (no la fecha, que es variable), el prefijo es literal y estático — condición necesaria para que `filter_prefix` funcione (S3 no admite comodines en filtros de notificación).
 
 ## `modules/ecr`
 
@@ -72,7 +72,7 @@ Cada módulo expone `log_group_name`, `log_group_arn` y el/los `resource_arn` re
 ## `modules/athena`
 
 - Un `aws_athena_workgroup` dedicado al proyecto.
-- Ubicación de resultados de consulta (`aws_s3_bucket` adicional o prefijo `athena-results/` dentro del bucket de datos), con `force_destroy = true` igual que el resto de buckets de datos.
+- Ubicación de resultados de consulta: prefijo `athena-results/` dentro del mismo bucket de datos (no un bucket adicional), consistente con el default `use_single_bucket = true` de `modules/s3_data_lake` — un bucket menos que administrar y destruir, sin implicaciones funcionales distintas para esta demo.
 
 ---
 

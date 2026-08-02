@@ -2,7 +2,7 @@
 
 **Proyecto:** Data Lake Serverless para Retail con AWS
 **Metodología:** Spec Driven Development (SDD)
-**Cantidad de SPECs:** 6
+**Cantidad de SPECs:** 7
 **Objetivo:** Definir el conjunto mínimo de especificaciones necesarias para construir la demo completa mediante IA (Claude Code / ChatGPT) sin generar documentación innecesaria.
 
 ---
@@ -140,12 +140,32 @@ Definir la capa analítica del laboratorio y los criterios que permitirán valid
 
 ---
 
+# SPEC-007 - Generadores de Datos Sintéticos
+
+## Objetivo
+
+Definir el script Python que genera los datasets sintéticos de ventas para las 5 divisiones de RetailCorp, en sus formatos de origen correspondientes, y los sube a la capa Bronze del Data Lake.
+
+## Contenido esperado
+
+- Librerías a utilizar y criterio de decisión
+- Estructura del script y entrypoint CLI
+- Selección de writer por división
+- Generación de filas y catálogo por división
+- Errores intencionales (cuarentena)
+- Carga hacia Amazon S3
+- Reproducibilidad (semilla)
+
+---
+
 # Dependencia entre SPECs
 
 ```text
 SPEC-001
 │
 ├── SPEC-002
+│      │
+│      └── SPEC-007
 │
 ├── SPEC-003
 │      │
@@ -168,6 +188,7 @@ SPEC-001
 | 4     | SPEC-004 - Infraestructura Terraform           | Media     |
 | 5     | SPEC-005 - Implementación de la Lambda        | Media     |
 | 6     | SPEC-006 - Analítica y Validación End-to-End | Media     |
+| 7     | SPEC-007 - Generadores de Datos Sintéticos    | Alta      |
 
 ---
 

@@ -39,6 +39,12 @@ El campo `store` del esquema unificado identifica la división de origen; no exi
 
 - Se genera como **UUID v4** en el momento de la creación del registro sintético.
 - Garantiza unicidad global sin necesidad de coordinación entre generadores de distintas divisiones.
+- El generador (SPEC-007) siempre lo incluye; no forma parte del catálogo de corrupciones
+  intencionales (SPEC-007, "Errores intencionales"). La validación de la Lambda (SPEC-005)
+  es defensiva: si por alguna razón una fila llegara sin `sale_id` o con un valor no-UUID,
+  la Lambda genera uno nuevo en el paso de normalización en vez de rechazar la fila
+  únicamente por ese campo. Este comportamiento defensivo no es la vía esperada en el
+  flujo normal, solo una salvaguarda.
 
 ---
 
@@ -69,20 +75,27 @@ Cada división exporta su archivo en un formato y con una estructura de columnas
 
 # Esquema unificado (Gold)
 
-Todos los formatos de origen deben converger en el siguiente esquema, almacenado en Parquet:
+Todos los formatos de origen deben converger en el siguiente esquema. `store` y `date`
+son **columnas de partición** (codificadas en la ruta S3 `gold/store=<division>/date=<fecha>/`,
+ver SPEC-003) y por lo tanto **no se escriben como columnas dentro del archivo Parquet**;
+Athena las expone igual en el `SELECT` porque el Glue Crawler las registra como columnas
+de partición de la tabla. Escribirlas también dentro del Parquet produciría columnas
+duplicadas al catalogar (ver SPEC-005, "Conversión a Parquet").
 
-| Campo    | Tipo                  | Nullable | Descripción                                                                                  |
-| -------- | --------------------- | -------- | --------------------------------------------------------------------------------------------- |
-| sale_id  | string (UUID)         | No       | Identificador único de la venta                                                              |
-| date     | date (`YYYY-MM-DD`) | No       | Fecha de la venta, normalizada                                                                |
-| store    | string                | No       | División de origen (`electronica`, `supermercado`, `moda`, `hogar`, `marketplace`) |
-| category | string                | No       | Categoría del producto                                                                       |
-| product  | string                | No       | Nombre del producto                                                                           |
-| quantity | integer               | No       | Cantidad vendida, entero positivo                                                             |
-| price    | decimal               | No       | Precio unitario                                                                               |
-| total    | decimal               | No       | `quantity * price`, recalculado en transformación para consistencia                        |
+| Campo    | Tipo                  | Nullable | Dónde vive                | Descripción                                                                                  |
+| -------- | --------------------- | -------- | -------------------------- | ----------------------------------------------------------------------------------------------- |
+| sale_id  | string (UUID)         | No       | Columna Parquet            | Identificador único de la venta                                                              |
+| date     | date (`YYYY-MM-DD`) | No       | Partición Hive (`date=`)  | Fecha de la venta, normalizada                                                                |
+| store    | string                | No       | Partición Hive (`store=`) | División de origen (`electronica`, `supermercado`, `moda`, `hogar`, `marketplace`) |
+| category | string                | No       | Columna Parquet            | Categoría del producto                                                                       |
+| product  | string                | No       | Columna Parquet            | Nombre del producto                                                                           |
+| quantity | integer               | No       | Columna Parquet            | Cantidad vendida, entero positivo                                                             |
+| price    | decimal               | No       | Columna Parquet            | Precio unitario                                                                               |
+| total    | decimal               | No       | Columna Parquet            | `quantity * price`, recalculado en transformación para consistencia                        |
 
-Este esquema es el contrato que consume Athena vía Glue Data Catalog (ver SPEC-006).
+Este esquema (columnas Parquet + columnas de partición) es el contrato que consume Athena
+vía Glue Data Catalog (ver SPEC-006). El esquema pyarrow explícito que fija estos tipos al
+escribir se define en SPEC-005.
 
 ---
 

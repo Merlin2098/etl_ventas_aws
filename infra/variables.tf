@@ -81,3 +81,47 @@ variable "budget_alert_email" {
   type        = string
   default     = ""
 }
+
+# --- Retail data lake demo (SPEC-004) ---
+
+variable "divisions" {
+  description = "RetailCorp divisions, one Lambda/ECR/S3-notification-filter per division."
+  type        = list(string)
+  default     = ["electronica", "supermercado", "moda", "hogar", "marketplace"]
+}
+
+variable "data_bucket_force_destroy" {
+  description = "Whether Terraform may destroy the data lake bucket (bronze/gold/quarantine) with objects inside."
+  type        = bool
+  default     = true
+}
+
+variable "lambda_image_tag" {
+  description = "ECR image tag/digest to deploy per division. Updated after each docker_push.sh run (SPEC-004 'Flujo de despliegue')."
+  type        = map(string)
+  default = {
+    electronica  = "placeholder"
+    supermercado = "placeholder"
+    moda         = "placeholder"
+    hogar        = "placeholder"
+    marketplace  = "placeholder"
+  }
+}
+
+variable "lambda_memory_size" {
+  description = "Memory (MB) allocated to each ingestion Lambda."
+  type        = number
+  default     = 512
+}
+
+variable "lambda_timeout" {
+  description = "Timeout (seconds) for each ingestion Lambda."
+  type        = number
+  default     = 60
+}
+
+variable "glue_crawler_schedule" {
+  description = "Cron expression for the Gold Glue Crawler. Empty = manual execution only (SPEC-006)."
+  type        = string
+  default     = ""
+}
