@@ -28,6 +28,12 @@ variable "data_bucket_arn" {
   type        = string
 }
 
+variable "silver_prefix" {
+  description = "Base prefix for the Silver layer."
+  type        = string
+  default     = "silver/"
+}
+
 variable "gold_prefix" {
   description = "Base prefix for the Gold layer."
   type        = string

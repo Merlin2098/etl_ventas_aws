@@ -67,7 +67,18 @@ S3 Event Notification
 
         │
         ▼
- Lambda (Docker) — una función por división/formato
+ Lambda de ingesta (Docker) — una función por división/formato
+
+        │
+        ▼
+ Amazon S3 (Silver)
+
+        │
+S3 Event Notification
+
+        │
+        ▼
+ Lambda de transformación (Docker) — una función por división
 
         │
         ▼
@@ -93,17 +104,21 @@ Almacenamiento del Data Lake.
 Capas:
 
 - Bronze
+- Silver
 - Gold
 
 ---
 
 ## AWS Lambda
 
-Procesamiento automático de cada archivo. Se despliega **una función Lambda por división/formato** (4 en total, una por formato: CSV, Excel, JSON, PDF), cada una empaquetada en su propia imagen Docker con el parser correspondiente.
+Procesamiento automático de cada archivo, en dos etapas encadenadas por eventos S3:
+
+- **Lambda de ingesta** (Bronze → Silver): **una función por división/formato** (4 en total, una por formato: CSV, Excel, JSON, PDF), cada una empaquetada en su propia imagen Docker con el parser correspondiente.
+- **Lambda de transformación** (Silver → Gold): una función por división (4 en total), sin parser de formato (Silver ya es Parquet homogéneo), comparte imagen Docker con la Lambda de ingesta de su división.
 
 Responsabilidades:
 
-- Detectar formato
+- Detectar formato (solo la Lambda de ingesta)
 - Validar estructura
 - Transformar datos
 - Normalizar columnas
@@ -256,7 +271,6 @@ Estos temas podrán desarrollarse en webinars posteriores.
 Posibles versiones posteriores del laboratorio:
 
 - Particionado por fecha.
-- Medallion Architecture (Bronze / Silver / Gold).
 - EventBridge Scheduler para cargas automáticas.
 - Step Functions para orquestación.
 - Glue Jobs con Spark.

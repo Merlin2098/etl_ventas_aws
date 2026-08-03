@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Builds and pushes the 5 division Lambda images from the single
-# docker/Dockerfile (SPEC-005 / SPEC-004 "Flujo de despliegue"). Requires the
+# Builds and pushes the 4 division Lambda images from the single
+# docker/Dockerfile (SPEC-005 / SPEC-004 "Flujo de despliegue"). Each image
+# serves both Lambda functions of its division (ingestion + transform,
+# SPEC-004/SPEC-005) — the transform function overrides the entrypoint via
+# Terraform's image_config.command, no separate build needed. Requires the
 # ECR repositories to already exist (first `terraform apply`, SPEC-004).
 
 DIVISIONS=(electronica supermercado moda marketplace)

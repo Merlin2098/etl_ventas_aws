@@ -26,12 +26,17 @@ variable "divisions" {
 }
 
 variable "lambda_function_arns" {
-  description = "Lambda function ARN per division (from modules/lambda_ingestion), used to wire up bucket notifications."
+  description = "Ingestion Lambda function ARN per division (from modules/lambda_ingestion), used to wire up the bronze/ bucket notification."
+  type        = map(string)
+}
+
+variable "transform_lambda_function_arns" {
+  description = "Transform Lambda function ARN per division (from modules/lambda_ingestion), used to wire up the silver/ bucket notification."
   type        = map(string)
 }
 
 variable "lambda_permission_dependency" {
-  description = "The aws_lambda_permission resources from modules/lambda_ingestion; passed in purely to sequence the notification after the permission exists."
+  description = "The aws_lambda_permission resources from modules/lambda_ingestion (both ingestion and transform); passed in purely to sequence the notification after the permissions exist."
   type        = any
   default     = null
 }

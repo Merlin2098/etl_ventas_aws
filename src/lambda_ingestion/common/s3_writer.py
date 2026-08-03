@@ -8,7 +8,11 @@ import boto3
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from src.lambda_ingestion.common.schema import GOLD_SCHEMA
+from src.lambda_ingestion.common.schema import GOLD_SCHEMA, SILVER_SCHEMA
+
+
+def _silver_prefix(division: str, date: datetime.date) -> str:
+    return f"silver/store={division}/date={date.isoformat()}/"
 
 
 def _gold_prefix(division: str, date: datetime.date) -> str:
@@ -47,6 +51,39 @@ def write_gold(
         return None
 
     table = pa.Table.from_pylist(rows, schema=GOLD_SCHEMA)
+    buffer = io.BytesIO()
+    pq.write_table(table, buffer)
+    buffer.seek(0)
+
+    key = f"{prefix}part-{request_id}.parquet"
+    s3_client.put_object(Bucket=bucket, Key=key, Body=buffer.getvalue())
+    return f"s3://{bucket}/{key}"
+
+
+def write_silver(
+    bucket: str,
+    division: str,
+    date: datetime.date,
+    request_id: str,
+    rows: list[dict],
+) -> str | None:
+    """Delete-then-write the Silver partition for division+date, same 'último gana'
+    contract as write_gold (SPEC-003): Silver is data derived from one Bronze file
+    per partition, so a Bronze re-upload must replace the prior Silver output rather
+    than accumulate alongside it — accumulating would leave stale duplicate rows for
+    the Gold-stage Lambda to re-ingest.
+
+    Returns the written S3 URI, or None if there were no rows (no empty Parquet
+    file is written, per SPEC-005).
+    """
+    s3_client = boto3.client("s3")
+    prefix = _silver_prefix(division, date)
+    _delete_prefix(s3_client, bucket, prefix)
+
+    if not rows:
+        return None
+
+    table = pa.Table.from_pylist(rows, schema=SILVER_SCHEMA)
     buffer = io.BytesIO()
     pq.write_table(table, buffer)
     buffer.seek(0)

@@ -68,11 +68,12 @@ origen requiera un writer nuevo (ver "Selección de writer por división").
 
 # Entrypoint CLI
 
-Un único script parametrizado, no 5 scripts separados:
+Un único script parametrizado, no 4 scripts separados:
 
 ```
 python scripts/data_generator/generate_sales.py --division electronica --date 2026-08-01
 python scripts/data_generator/generate_sales.py --division all --date 2026-08-01   # las 4 en secuencia
+python scripts/data_generator/generate_sales.py                                    # all + fecha de hoy (defaults)
 ```
 
 | Argumento | Descripción | Default |

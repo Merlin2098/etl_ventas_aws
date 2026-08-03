@@ -24,6 +24,21 @@ GOLD_SCHEMA = pa.schema(
     ]
 )
 
+# Silver Parquet columns. Same partition scheme as Gold (silver/store=<division>/date=<fecha>/)
+# but without `total` (recomputed only in Gold) and with `sale_id` nullable (passthrough from
+# the source row if present; generation of a missing sale_id is a Gold-only concern).
+SILVER_SCHEMA = pa.schema(
+    [
+        pa.field("sale_id", pa.string(), nullable=True),
+        pa.field("category", pa.string(), nullable=False),
+        pa.field("product", pa.string(), nullable=False),
+        pa.field("quantity", pa.int32(), nullable=False),
+        pa.field("price", pa.decimal128(10, 2), nullable=False),
+        pa.field("currency", pa.string(), nullable=False),
+        pa.field("status", pa.string(), nullable=False),
+    ]
+)
+
 # Applied when the source row omits currency/status or sends an unrecognized
 # value — kept as passthrough metadata (no cross-division homologation yet,
 # SPEC-008 #5/#10 explicitly defer that to a later stage).
@@ -99,18 +114,19 @@ def _parse_positive_decimal(value: object) -> Decimal | None:
     return result if result > 0 else None
 
 
-def validate_and_normalize(
+def _normalize_core(
     raw_row: dict, division: str, stage: str, correlation_id: str
 ) -> tuple[dict, datetime.date]:
-    """Validates a raw row against the Gold contract (SPEC-002) and normalizes it.
+    """Shared field-level validation/normalization for both Silver and Gold stages
+    (date, category, product, quantity, price, currency, status). Does not touch
+    `sale_id` or `total` — those are resolved by each stage's own entry point
+    (see `normalize_silver` and `validate_and_normalize`).
 
-    Returns (gold_row, date) where gold_row matches GOLD_SCHEMA (no store/date columns)
-    and date is the normalized partition value. Raises RowValidationError on any rule
-    violation (SPEC-005 "Validaciones").
+    Raises RowValidationError on any rule violation (SPEC-005 "Validaciones").
+    Accepts either a raw parser row or an already-typed Silver row: `parse_date`
+    handles both `datetime.date` and string inputs, making this idempotent.
     """
-    sale_id = raw_row.get("sale_id")
-    if not sale_id or not _is_uuid(sale_id):
-        sale_id = str(uuid.uuid4())
+    sale_id = raw_row.get("sale_id") or ""
 
     date = parse_date(raw_row.get("date"))
     if date is None:
@@ -157,23 +173,67 @@ def validate_and_normalize(
             correlation_id=correlation_id,
         )
 
-    total = (price * quantity).quantize(Decimal("0.01"))
-
     currency = raw_row.get("currency")
     currency = currency.strip().upper() if isinstance(currency, str) and currency.strip() else DEFAULT_CURRENCY
 
     status = raw_row.get("status")
     status = status.strip().upper() if isinstance(status, str) and status.strip() else DEFAULT_STATUS
 
-    gold_row = {
-        "sale_id": sale_id,
+    row = {
         "category": category,
         "product": product,
         "quantity": quantity,
         "price": price,
-        "total": total,
         "currency": currency,
         "status": status,
+    }
+    return row, date
+
+
+def normalize_silver(
+    raw_row: dict, division: str, correlation_id: str
+) -> tuple[dict, datetime.date]:
+    """Silver stage: field-level validation/normalization only. Does not generate a
+    missing `sale_id` (kept nullable/passthrough) and does not compute `total`
+    (both are Gold-only concerns, see `validate_and_normalize`).
+
+    Returns (silver_row, date) where silver_row matches SILVER_SCHEMA.
+    """
+    row, date = _normalize_core(raw_row, division, stage="silver_normalize", correlation_id=correlation_id)
+    sale_id = raw_row.get("sale_id")
+    row["sale_id"] = sale_id if isinstance(sale_id, str) else None
+    return row, date
+
+
+def validate_and_normalize(
+    raw_row: dict, division: str, stage: str, correlation_id: str
+) -> tuple[dict, datetime.date]:
+    """Validates a row against the Gold contract (SPEC-002) and normalizes it.
+
+    Accepts either a raw parser row or an already-normalized Silver row (a strict
+    subset of a raw row's fields) — see `_normalize_core`.
+
+    Returns (gold_row, date) where gold_row matches GOLD_SCHEMA (no store/date columns)
+    and date is the normalized partition value. Raises RowValidationError on any rule
+    violation (SPEC-005 "Validaciones").
+    """
+    row, date = _normalize_core(raw_row, division, stage, correlation_id)
+
+    sale_id = raw_row.get("sale_id")
+    if not sale_id or not _is_uuid(sale_id):
+        sale_id = str(uuid.uuid4())
+
+    total = (row["price"] * row["quantity"]).quantize(Decimal("0.01"))
+
+    gold_row = {
+        "sale_id": sale_id,
+        "category": row["category"],
+        "product": row["product"],
+        "quantity": row["quantity"],
+        "price": row["price"],
+        "total": total,
+        "currency": row["currency"],
+        "status": row["status"],
     }
     return gold_row, date
 

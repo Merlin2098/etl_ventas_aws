@@ -8,6 +8,8 @@ import pytest
 from src.lambda_ingestion.common.errors import RowValidationError
 from src.lambda_ingestion.common.schema import (
     GOLD_SCHEMA,
+    SILVER_SCHEMA,
+    normalize_silver,
     parse_date,
     parse_free_text_date_es,
     validate_and_normalize,
@@ -25,6 +27,22 @@ def test_gold_schema_excludes_partition_columns():
         "quantity",
         "price",
         "total",
+        "currency",
+        "status",
+    }
+
+
+def test_silver_schema_excludes_partition_columns_and_total():
+    field_names = {field.name for field in SILVER_SCHEMA}
+    assert "store" not in field_names
+    assert "date" not in field_names
+    assert "total" not in field_names
+    assert field_names == {
+        "sale_id",
+        "category",
+        "product",
+        "quantity",
+        "price",
         "currency",
         "status",
     }
@@ -171,3 +189,70 @@ def test_validate_and_normalize_raises_on_invalid_rows(row):
         validate_and_normalize(
             row, division="electronica", stage="validate", correlation_id="c1"
         )
+
+
+def test_normalize_silver_excludes_total_and_does_not_generate_sale_id():
+    row = {
+        "date": "01/08/2026",
+        "category": "Audio",
+        "product": "Parlante",
+        "quantity": "3",
+        "price": "10.00",
+    }
+    silver_row, date = normalize_silver(row, division="electronica", correlation_id="c1")
+    assert "total" not in silver_row
+    assert silver_row["sale_id"] is None
+    assert date == datetime.date(2026, 8, 1)
+    assert silver_row["category"] == "Audio"
+    assert silver_row["quantity"] == 3
+    assert silver_row["price"] == Decimal("10.00")
+
+
+def test_normalize_silver_passes_through_existing_sale_id():
+    row = {
+        "sale_id": "6f2b8d63-2b0e-4e1a-8f5a-1c2b3d4e5f60",
+        "date": "01/08/2026",
+        "category": "Audio",
+        "product": "Parlante",
+        "quantity": "1",
+        "price": "10.00",
+    }
+    silver_row, _ = normalize_silver(row, division="electronica", correlation_id="c1")
+    assert silver_row["sale_id"] == "6f2b8d63-2b0e-4e1a-8f5a-1c2b3d4e5f60"
+
+
+def test_normalize_silver_raises_on_invalid_rows_same_as_gold():
+    row = {
+        "date": "01/08/2026",
+        "category": "C",
+        "product": "P",
+        "quantity": "1",
+        "price": "-5",
+    }
+    with pytest.raises(RowValidationError):
+        normalize_silver(row, division="electronica", correlation_id="c1")
+
+
+def test_gold_stage_produces_same_row_from_raw_or_silver_input():
+    raw_row = {
+        "sale_id": "6f2b8d63-2b0e-4e1a-8f5a-1c2b3d4e5f60",
+        "date": "01/08/2026",
+        "category": "Audio",
+        "product": "Parlante",
+        "quantity": "3",
+        "price": "10.00",
+        "currency": "usd",
+        "status": "paid",
+    }
+    gold_from_raw, date_from_raw = validate_and_normalize(
+        raw_row, division="electronica", stage="validate", correlation_id="c1"
+    )
+
+    silver_row, silver_date = normalize_silver(raw_row, division="electronica", correlation_id="c1")
+    silver_row["date"] = silver_date  # Gold-stage input carries date as a typed value, not a column
+    gold_from_silver, date_from_silver = validate_and_normalize(
+        silver_row, division="electronica", stage="validate", correlation_id="c1"
+    )
+
+    assert gold_from_raw == gold_from_silver
+    assert date_from_raw == date_from_silver

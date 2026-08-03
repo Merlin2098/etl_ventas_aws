@@ -105,21 +105,23 @@ ORDER BY category, revenue DESC;
 El laboratorio se considera funcionando correctamente cuando, tras ejecutar los 4 generadores para una fecha dada:
 
 1. Los 4 archivos de origen existen en `bronze/<division>/date=<fecha>/`.
-2. Cada archivo disparó su Lambda correspondiente (evidencia: logs de CloudWatch, ver abajo).
-3. Existen archivos Parquet en `gold/store=<division>/date=<fecha>/` para las 4 divisiones.
-4. Existen archivos de error en `quarantine/store=<division>/date=<fecha>/` para las filas inválidas generadas intencionalmente (SPEC-002).
-5. El Glue Crawler, tras ejecutarse, registra la tabla `sales` con las particiones de la fecha procesada.
-6. Las queries de la sección anterior se ejecutan sin error en Athena y devuelven resultados consistentes con los criterios de la tabla "Preguntas de negocio".
+2. Cada archivo disparó su Lambda de ingesta correspondiente (evidencia: logs de CloudWatch, ver abajo).
+3. Existen archivos Parquet en `silver/store=<division>/date=<fecha>/` para las 4 divisiones, lo que a su vez disparó la Lambda de transformación correspondiente.
+4. Existen archivos Parquet en `gold/store=<division>/date=<fecha>/` para las 4 divisiones.
+5. Existen archivos de error en `quarantine/store=<division>/date=<fecha>/` para las filas inválidas generadas intencionalmente (SPEC-002).
+6. El Glue Crawler, tras ejecutarse, registra la tabla `sales` con las particiones de la fecha procesada.
+7. Las queries de la sección anterior se ejecutan sin error en Athena y devuelven resultados consistentes con los criterios de la tabla "Preguntas de negocio".
 
 ## Validación funcional
 
-- **Conteo de filas Gold vs Bronze**: por cada división, `filas_validas_en_gold + filas_en_quarantine == filas_totales_en_archivo_origen`. Una discrepancia indica filas perdidas silenciosamente (defecto a corregir, ver SPEC-005 — nunca se debe descartar una fila sin registrarla en cuarentena).
+- **Conteo de filas consistente entre etapas**: por cada división, `filas_en_silver + filas_en_quarantine_de_ingesta == filas_totales_en_archivo_origen`, y `filas_en_gold == filas_en_silver` (las reglas de Gold reaplican las mismas validaciones de campo que Silver ya superó, ver SPEC-005 — no deberían rechazarse filas adicionales en esa segunda pasada). Una discrepancia indica filas perdidas silenciosamente (defecto a corregir — nunca se debe descartar una fila sin registrarla en cuarentena).
 - **Revisión de quarantine**: las filas en `quarantine/` deben corresponder a los errores intencionales sembrados por los generadores (SPEC-002) — mismo tipo de error, mismo `stage` en el registro. Si aparecen filas en cuarentena sin causa esperada, o si faltan las esperadas, se considera un defecto del parser o de las reglas de validación.
+- **Integridad de encoding**: los valores de `category`/`product` en Gold no deben contener caracteres de reemplazo (`�`, U+FFFD) ni mojibake — una fila con corrupción intencional de encoding (SPEC-007, "Errores intencionales") no debe degradar la codificación de ninguna otra fila del mismo archivo (ver "Validación local pre-despliegue" para el test automatizado que cubre esta regresión).
 
 ## Validación del despliegue
 
 - `terraform plan` sin cambios pendientes tras el último `apply` (infraestructura declarada = infraestructura real).
-- Las 5 funciones Lambda existen y referencian una imagen ECR válida (no `latest`, ver SPEC-004/SPEC-005).
+- Las 8 funciones Lambda (4 de ingesta + 4 de transformación) existen y referencian una imagen ECR válida (no `latest`, ver SPEC-004/SPEC-005).
 - Los outputs de Terraform (`lambda_function_arns`, `glue_database_name`, `athena_workgroup_name`, etc., ver SPEC-004) resuelven a recursos existentes.
 
 ## Validación del procesamiento
@@ -146,6 +148,86 @@ Para dar por validado el laboratorio durante el webinar, se recopila:
 
 ---
 
+# Validación local pre-despliegue
+
+Antes de desplegar infraestructura en AWS, el pipeline completo (parseo, normalización
+Silver, validación Gold, cuarentena) puede ejercitarse enteramente en el equipo local, sin
+credenciales AWS ni recursos en la nube. Esto permite detectar defectos de lógica de negocio
+(reglas de validación, normalización de fecha, encoding) antes de invertir tiempo en
+`terraform apply` y en la depuración vía CloudWatch.
+
+## Simulación manual (`run_local_ingestion.py`)
+
+`scripts/testing/run_local_ingestion.py` reproduce localmente el mismo flujo de las dos
+Lambdas (`handler_base.process_event` y `transform_handler_base.process_transform_event`,
+ver SPEC-005), leyendo/escribiendo archivos en disco en vez de S3:
+
+```
+python scripts/testing/run_local_ingestion.py
+```
+
+Sin argumentos, corre las 4 divisiones (`--division all`, default) contra
+`data/<division>_<fecha-de-hoy>.<ext>` (mismo esquema de nombres que usa el generador, ver
+SPEC-007). También admite una sola división con archivo explícito:
+
+```
+python scripts/testing/run_local_ingestion.py --division electronica --file data/electronica_2026-08-02.csv --stage both
+```
+
+| Argumento | Descripción | Default |
+|-----------|-------------|---------|
+| `--division` | División específica, o `all` para las 4 en secuencia | `all` |
+| `--file` | Ruta a un archivo Bronze. Solo válido con una división específica (error si se combina con `all`); si se omite, se resuelve como `data/<division>_<fecha>.<ext>` | resuelto desde `--date` |
+| `--date` | Fecha usada para resolver `--file` por defecto | Fecha de ejecución (hoy) |
+| `--stage` | `silver` (solo Bronze→Silver), `gold` (asume Silver ya calculado en memoria y corre Silver→Gold), o `both` | `both` |
+| `--out-dir` | Carpeta local de salida (`silver/`, `gold/`, `quarantine/`) | `data/local_run/` |
+
+La salida local usa el mismo formato que la Lambda real escribiría en S3: Parquet para
+`silver/` y `gold/` (con `SILVER_SCHEMA`/`GOLD_SCHEMA` de `common/schema.py`, no JSON), y
+JSON para `quarantine/` (mismo formato `{row, error}` que `write_quarantine`). Un archivo
+faltante para alguna división se reporta como `SKIPPED` sin detener el resto de divisiones.
+
+## Test E2E automatizado (`tests/e2e/`)
+
+`tests/e2e/test_pipeline_local.py` automatiza la misma simulación con pytest, sin AWS:
+
+- Genera datos Bronze frescos para las 4 divisiones con semilla fija (reproducible),
+  reutilizando `generate_division()` (SPEC-007) directamente — no reimplementa el
+  generador.
+- Corre cada archivo por `run_bronze_to_silver`/`run_silver_to_gold` (las mismas funciones
+  que usa la simulación manual descrita arriba).
+- Por división, verifica: el Parquet Silver y Gold cumplen exactamente su esquema
+  (`SILVER_SCHEMA`/`GOLD_SCHEMA`), tienen filas, los conteos de filas son consistentes entre
+  Silver y Gold, `total == price * quantity` en cada fila Gold, y no aparecen caracteres de
+  reemplazo (`�`) en `category`/`product` — esta última es una guarda de regresión
+  específica para el bug de encoding descrito abajo.
+- Una prueba adicional cruza los alias de categoría con tilde/ñ declarados en
+  `src/generators/detalle-data.yaml` contra lo que efectivamente aparece en Gold, para
+  detectar corrupción de encoding de forma más agresiva que revisar filas al azar.
+
+Se ejecuta junto al resto de unit tests (`scripts/testing/run_pytest.py`), sin marcador
+`cloud` — no requiere credenciales AWS ni red.
+
+## Regresión de encoding en el parser CSV (Electrónica)
+
+Durante esta validación local se detectó y corrigió un defecto real: `CsvSalesParser.parse()`
+(`src/lambda_ingestion/electronica/parser.py`) decodificaba el archivo completo con un único
+`raw_bytes.decode("utf-8")`, con fallback a `latin-1` si fallaba. Como el generador siembra
+una corrupción intencional de encoding en una sola fila por archivo (SPEC-007, "Errores
+intencionales" — un byte no-UTF-8 suelto en `product`), esa única fila corrupta hacía fallar
+el `decode()` de **todo el archivo**, degradando a `latin-1` — que reinterpreta los caracteres
+UTF-8 multibyte válidos (tildes, ñ) de las 349 filas restantes como mojibake, aunque estuvieran
+correctamente codificadas en el archivo de origen.
+
+**Corrección aplicada**: el parser decodifica línea por línea (helper `_decode_line`), con el
+mismo fallback UTF-8 → Latin-1 aplicado por fila en vez de por archivo. Esto aísla la
+corrupción intencional a la fila que la contiene (que sigue cayendo a cuarentena, comportamiento
+esperado) sin afectar la codificación de las demás filas. Cubierto por
+`test_gold_output_has_no_mojibake_in_text_fields` y
+`test_all_known_category_aliases_appear_uncorrupted_in_gold` en `tests/e2e/`.
+
+---
+
 # Tests automatizados de infraestructura
 
 Siguiendo Policy 009 (Required, `ai/policies/global.md`), toda infraestructura AWS
@@ -156,8 +238,9 @@ desplegada debe incluir tests de humo en `tests/aws/`, generados según la plant
   `infra/env/.env.credentials` o variables de entorno) y `tf_outputs` (lee
   `terraform output -json`). Si no hay credenciales, los tests hacen **skip**, nunca fallan.
 - `tests/aws/test_smoke.py`: valida, contra los outputs reales de Terraform (nunca ARNs
-  hardcodeados) — identidad STS, existencia del bucket de datos, las 5 funciones Lambda,
-  sus 5 log groups, la base de datos y el crawler de Glue, y el workgroup de Athena.
+  hardcodeados) — identidad STS, existencia del bucket de datos, las 8 funciones Lambda
+  (ingesta + transformación por división), sus log groups, la base de datos y el crawler
+  de Glue, y el workgroup de Athena.
 - Se ejecutan con `python scripts/testing/run_cloud_tests.py` (marcador `pytest.mark.cloud`,
   ver `pytest.ini`), separados de los tests unitarios (`make test` / `run_pytest.py`), que
   nunca requieren credenciales AWS.
@@ -170,8 +253,11 @@ invertir tiempo en la validación funcional completa durante el webinar.
 
 # Fuera de alcance
 
-- Tests de integración E2E automatizados que generen datos, invoquen Lambdas y verifiquen
-  resultados en Athena sin intervención humana; esta demo usa verificación manual/guiada
-  durante el webinar, complementada por los smoke tests de infraestructura descritos arriba.
+- Tests de integración E2E automatizados **contra AWS real** que invoquen Lambdas
+  desplegadas y verifiquen resultados en Athena sin intervención humana; esta demo usa
+  verificación manual/guiada durante el webinar para esa parte, complementada por los smoke
+  tests de infraestructura descritos arriba. La lógica de negocio del pipeline (parseo,
+  Silver, Gold, cuarentena) sí cuenta con un test E2E automatizado que corre enteramente en
+  local sin AWS (ver "Validación local pre-despliegue").
 - Alertas o dashboards de monitoreo continuo (QuickSight, CloudWatch Dashboards) — mencionado como evolución futura en SPEC-001.
 - Validación de performance o carga (el volumen de datos es intencionalmente pequeño, ver SPEC-002).

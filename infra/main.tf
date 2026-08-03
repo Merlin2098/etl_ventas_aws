@@ -177,13 +177,17 @@ module "lambda_ingestion" {
 module "s3_data_lake" {
   source = "./modules/s3_data_lake"
 
-  name_prefix                  = local.name_prefix
-  account_id                   = data.aws_caller_identity.current.account_id
-  force_destroy                = var.data_bucket_force_destroy
-  divisions                    = var.divisions
-  lambda_function_arns         = module.lambda_ingestion.function_arns
-  lambda_permission_dependency = module.lambda_ingestion.function_names
-  tags                         = local.common_tags
+  name_prefix                    = local.name_prefix
+  account_id                     = data.aws_caller_identity.current.account_id
+  force_destroy                  = var.data_bucket_force_destroy
+  divisions                      = var.divisions
+  lambda_function_arns           = module.lambda_ingestion.function_arns
+  transform_lambda_function_arns = module.lambda_ingestion.transform_function_arns
+  lambda_permission_dependency = merge(
+    module.lambda_ingestion.function_names,
+    module.lambda_ingestion.transform_function_names,
+  )
+  tags = local.common_tags
 }
 
 module "glue_catalog" {

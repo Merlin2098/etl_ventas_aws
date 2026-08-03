@@ -144,7 +144,7 @@ Definir la capa analítica del laboratorio y los criterios que permitirán valid
 
 ## Objetivo
 
-Definir el script Python que genera los datasets sintéticos de ventas para las 5 divisiones de RetailCorp, en sus formatos de origen correspondientes, y los sube a la capa Bronze del Data Lake.
+Definir el script Python que genera los datasets sintéticos de ventas para las 4 divisiones de RetailCorp, en sus formatos de origen correspondientes, y los sube a la capa Bronze del Data Lake.
 
 ## Contenido esperado
 

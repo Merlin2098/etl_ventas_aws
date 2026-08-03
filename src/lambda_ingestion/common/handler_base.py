@@ -8,16 +8,18 @@ import boto3
 from src.lambda_ingestion.common.errors import FileParseError, RowValidationError
 from src.lambda_ingestion.common.logging_config import get_logger
 from src.lambda_ingestion.common.parser_base import SalesParser
-from src.lambda_ingestion.common.s3_writer import write_gold, write_quarantine
-from src.lambda_ingestion.common.schema import parse_date, validate_and_normalize
+from src.lambda_ingestion.common.s3_writer import write_quarantine, write_silver
+from src.lambda_ingestion.common.schema import normalize_silver, parse_date
 
 
 def process_event(event: dict, context, parser: SalesParser) -> dict:
-    """Shared handler flow for every division (SPEC-005 'Arquitectura interna'):
-    parse -> validate_and_normalize -> write gold/quarantine.
+    """Shared handler flow for every division's ingestion Lambda (SPEC-005
+    'Arquitectura interna'): parse -> normalize_silver -> write silver.
 
     `parser` already knows its division and format; this function contains no
-    format-detection logic (SPEC-003/SPEC-005 — one Lambda = one parser).
+    format-detection logic (SPEC-003/SPEC-005 — one Lambda = one parser). Rows
+    that fail Silver-stage validation are routed to quarantine here, same as
+    the Gold-stage Lambda does for its own validation failures.
     """
     division = os.environ["DIVISION"]
     bucket = os.environ["DATA_BUCKET"]
@@ -50,13 +52,12 @@ def process_event(event: dict, context, parser: SalesParser) -> dict:
     errors: dict[datetime.date, list[dict]] = {}
     for raw_row in raw_rows:
         try:
-            gold_row, date = validate_and_normalize(
+            silver_row, date = normalize_silver(
                 raw_row,
                 division=division,
-                stage="validate",
                 correlation_id=correlation_id,
             )
-            valid_rows.setdefault(date, []).append(gold_row)
+            valid_rows.setdefault(date, []).append(silver_row)
         except RowValidationError as exc:
             log.warning(
                 "Row routed to quarantine",
@@ -67,16 +68,16 @@ def process_event(event: dict, context, parser: SalesParser) -> dict:
                 {"row": raw_row, "error": exc.cause}
             )
 
-    written = {"gold": [], "quarantine": []}
+    written = {"silver": [], "quarantine": []}
     for date, rows in valid_rows.items():
-        uri = write_gold(bucket, division, date, correlation_id, rows)
+        uri = write_silver(bucket, division, date, correlation_id, rows)
         if uri:
-            written["gold"].append(uri)
+            written["silver"].append(uri)
 
     # Delete-then-write still applies to dates that only produced quarantined
-    # rows (SPEC-003/SPEC-005): clear any stale Gold partition from a prior run.
+    # rows (SPEC-003/SPEC-005): clear any stale Silver partition from a prior run.
     for date in set(errors) - set(valid_rows):
-        write_gold(bucket, division, date, correlation_id, [])
+        write_silver(bucket, division, date, correlation_id, [])
 
     for date, error_rows in errors.items():
         uri = write_quarantine(bucket, division, date, correlation_id, error_rows)

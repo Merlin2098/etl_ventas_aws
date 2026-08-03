@@ -98,6 +98,30 @@ escribir se define en SPEC-005.
 
 ---
 
+# Esquema intermedio (Silver)
+
+Capa intermedia entre Bronze y Gold, producida por la Lambda de ingesta (ver SPEC-003/SPEC-005)
+antes de la validación completa. Contiene los mismos campos que Gold, con dos diferencias:
+`sale_id` es *nullable* (passthrough del origen si viene, sin generarse aquí) y `total` no
+existe (se recalcula únicamente en la etapa Gold). `store` y `date` son columnas de partición
+Hive igual que en Gold (`silver/store=<division>/date=<fecha>/`), no columnas del Parquet.
+
+| Campo    | Tipo                  | Nullable | Dónde vive                | Descripción                                                    |
+| -------- | --------------------- | -------- | -------------------------- | ---------------------------------------------------------------- |
+| sale_id  | string (UUID)         | Sí      | Columna Parquet            | Passthrough del origen si es un UUID v4 válido; si no, `null` |
+| date     | date (`YYYY-MM-DD`) | No       | Partición Hive (`date=`)  | Fecha de la venta, normalizada                                |
+| store    | string                | No       | Partición Hive (`store=`) | División de origen                                             |
+| category | string                | No       | Columna Parquet            | Categoría del producto                                         |
+| product  | string                | No       | Columna Parquet            | Nombre del producto                                             |
+| quantity | integer               | No       | Columna Parquet            | Cantidad vendida, entero positivo                               |
+| price    | decimal               | No       | Columna Parquet            | Precio unitario                                                   |
+
+Una fila que no complete estos campos (fecha no parseable, categoría/producto vacío,
+cantidad/precio no numérico o negativo) se considera inválida en esta misma etapa y se
+enruta a cuarentena — no llega a generarse una fila Silver para ella (ver SPEC-005).
+
+---
+
 # Reglas básicas de transformación
 
 - `total` siempre se recalcula como `quantity * price` en la capa Gold, independientemente de si el origen trae un campo de total propio (evita inconsistencias entre divisiones).
