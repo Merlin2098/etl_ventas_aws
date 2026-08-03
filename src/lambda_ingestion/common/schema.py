@@ -19,8 +19,16 @@ GOLD_SCHEMA = pa.schema(
         pa.field("quantity", pa.int32(), nullable=False),
         pa.field("price", pa.decimal128(10, 2), nullable=False),
         pa.field("total", pa.decimal128(10, 2), nullable=False),
+        pa.field("currency", pa.string(), nullable=False),
+        pa.field("status", pa.string(), nullable=False),
     ]
 )
+
+# Applied when the source row omits currency/status or sends an unrecognized
+# value — kept as passthrough metadata (no cross-division homologation yet,
+# SPEC-008 #5/#10 explicitly defer that to a later stage).
+DEFAULT_CURRENCY = "PEN"
+DEFAULT_STATUS = "UNKNOWN"
 
 MONTHS_ES = {
     "enero": 1,
@@ -151,6 +159,12 @@ def validate_and_normalize(
 
     total = (price * quantity).quantize(Decimal("0.01"))
 
+    currency = raw_row.get("currency")
+    currency = currency.strip().upper() if isinstance(currency, str) and currency.strip() else DEFAULT_CURRENCY
+
+    status = raw_row.get("status")
+    status = status.strip().upper() if isinstance(status, str) and status.strip() else DEFAULT_STATUS
+
     gold_row = {
         "sale_id": sale_id,
         "category": category,
@@ -158,6 +172,8 @@ def validate_and_normalize(
         "quantity": quantity,
         "price": price,
         "total": total,
+        "currency": currency,
+        "status": status,
     }
     return gold_row, date
 

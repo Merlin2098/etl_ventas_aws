@@ -41,6 +41,10 @@ class CategoryConfig:
     products: list[str]
     price_min: Decimal
     price_max: Decimal
+    # Variantes de escritura del nombre de categoría / producto (SPEC-008 #7, #9).
+    # Un solo elemento (el nombre canónico) si no se declaran alias en el YAML.
+    category_aliases: list[str]
+    product_aliases: dict[str, list[str]]
 
 
 @dataclass
@@ -49,6 +53,10 @@ class DivisionConfig:
     date_formatter: Callable[[datetime.date], str]
     ext: str
     categories: dict[str, CategoryConfig]
+    # Catálogos propios del sistema origen (SPEC-008 #5, #10). Pueden repetir
+    # valores para sesgar la frecuencia (p.ej. la mayoría de ventas en PEN).
+    currencies: list[str]
+    statuses: list[str]
 
 
 def _build_date_formatter(date_format: str) -> Callable[[datetime.date], str]:
@@ -68,6 +76,8 @@ def _load_divisions(config_path: Path) -> tuple[dict[str, DivisionConfig], list[
                 products=cat["products"],
                 price_min=Decimal(str(cat["price_min"])),
                 price_max=Decimal(str(cat["price_max"])),
+                category_aliases=cat.get("category_aliases", [name]),
+                product_aliases=cat.get("product_aliases", {}),
             )
             for name, cat in spec["categories"].items()
         }
@@ -76,6 +86,8 @@ def _load_divisions(config_path: Path) -> tuple[dict[str, DivisionConfig], list[
             date_formatter=_build_date_formatter(spec["date_format"]),
             ext=spec["ext"],
             categories=categories,
+            currencies=spec["currencies"],
+            statuses=spec["statuses"],
         )
 
     return divisions, list(raw["division_order"])

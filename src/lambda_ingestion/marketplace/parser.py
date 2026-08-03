@@ -8,8 +8,8 @@ import pdfplumber
 from src.lambda_ingestion.common.errors import FileParseError
 from src.lambda_ingestion.common.parser_base import SalesParser
 
-FIELDNAMES = ["sale_id", "date", "category", "product", "quantity", "price"]
-HEADER_ROW = ["ID Venta", "Fecha", "Categoría", "Producto", "Cantidad", "Precio"]
+FIELDNAMES = ["sale_id", "date", "category", "product", "quantity", "price", "currency", "status"]
+HEADER_ROW = ["ID Venta", "Fecha", "Categoría", "Producto", "Cantidad", "Precio", "Moneda", "Estado"]
 
 
 class PdfSalesParser(SalesParser):

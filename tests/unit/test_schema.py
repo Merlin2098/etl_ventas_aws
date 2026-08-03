@@ -25,6 +25,8 @@ def test_gold_schema_excludes_partition_columns():
         "quantity",
         "price",
         "total",
+        "currency",
+        "status",
     }
 
 
@@ -71,6 +73,38 @@ def test_validate_and_normalize_recalculates_total_ignoring_source_total():
     assert date == datetime.date(2026, 8, 1)
     assert "store" not in gold_row
     assert "date" not in gold_row
+
+
+def test_validate_and_normalize_defaults_currency_and_status_when_missing():
+    row = {
+        "date": "01/08/2026",
+        "category": "Audio",
+        "product": "Parlante",
+        "quantity": "1",
+        "price": "10.00",
+    }
+    gold_row, _ = validate_and_normalize(
+        row, division="electronica", stage="validate", correlation_id="c1"
+    )
+    assert gold_row["currency"] == "PEN"
+    assert gold_row["status"] == "UNKNOWN"
+
+
+def test_validate_and_normalize_uppercases_currency_and_status():
+    row = {
+        "date": "01/08/2026",
+        "category": "Audio",
+        "product": "Parlante",
+        "quantity": "1",
+        "price": "10.00",
+        "currency": "usd",
+        "status": "paid",
+    }
+    gold_row, _ = validate_and_normalize(
+        row, division="electronica", stage="validate", correlation_id="c1"
+    )
+    assert gold_row["currency"] == "USD"
+    assert gold_row["status"] == "PAID"
 
 
 def test_validate_and_normalize_generates_sale_id_when_missing():

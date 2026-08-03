@@ -6,8 +6,8 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
 
-FIELDNAMES = ["sale_id", "date", "category", "product", "quantity", "price"]
-HEADER_LABELS = ["ID Venta", "Fecha", "Categoría", "Producto", "Cantidad", "Precio"]
+FIELDNAMES = ["sale_id", "date", "category", "product", "quantity", "price", "currency", "status"]
+HEADER_LABELS = ["ID Venta", "Fecha", "Categoría", "Producto", "Cantidad", "Precio", "Moneda", "Estado"]
 
 
 def write_pdf(rows: list[dict], output_path: Path) -> None:

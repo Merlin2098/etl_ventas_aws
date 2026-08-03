@@ -4,7 +4,7 @@ import csv
 from pathlib import Path
 
 
-FIELDNAMES = ["sale_id", "date", "category", "product", "quantity", "price"]
+FIELDNAMES = ["sale_id", "date", "category", "product", "quantity", "price", "currency", "status"]
 
 
 def write_csv(rows: list[dict], output_path: Path) -> None:

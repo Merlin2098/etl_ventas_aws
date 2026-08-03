@@ -13,3 +13,5 @@ class SaleRecord:
     product: str
     quantity: int
     price: Decimal
+    currency: str
+    status: str

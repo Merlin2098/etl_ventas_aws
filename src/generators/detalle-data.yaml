@@ -6,79 +6,108 @@
 #   (ver src/generators/common.py:format_date_free_text para "free_text_es")
 # ext: extensión del archivo generado
 # categories: catálogo de categoría -> productos + rango de precio (price_min/price_max)
+#   category_aliases: variantes de escritura para la MISMA categoría (SPEC-008 #7),
+#     elegidas al azar en vez del nombre canónico para simular catálogos inconsistentes
+#   product_aliases: variantes de escritura por producto (SPEC-008 #9)
+# currencies: monedas posibles de la división (SPEC-008 #5), la primera es la más frecuente
+# statuses: catálogo de estados propio del sistema origen (SPEC-008 #10)
 
 divisions:
   electronica:
     format: csv
     date_format: "%d/%m/%Y"
     ext: csv
+    currencies: [PEN, PEN, PEN, USD]
+    statuses: [PENDING, INVOICED, INVOICED, INVOICED]
     categories:
       Audio:
         products: ["Audífonos Bluetooth", "Parlante Portátil", "Barra de Sonido"]
         price_min: 15
         price_max: 300
+        category_aliases: ["Audio", "AUDIO", "audio"]
       Computación:
         products: ["Laptop 14''", "Mouse Inalámbrico", "Teclado Mecánico"]
         price_min: 20
         price_max: 1200
+        category_aliases: ["Computación", "Computacion", "COMP"]
+        product_aliases:
+          "Laptop 14''": ["Laptop 14''", "LAPTOP 14"]
       Telefonía:
         products: ["Smartphone Gama Media", "Funda Protectora", "Cargador Rápido"]
         price_min: 10
         price_max: 900
+        category_aliases: ["Telefonía", "Telefonia", "TEL"]
 
   supermercado:
     format: excel
     date_format: "%m-%d-%Y"
     ext: xlsx
+    currencies: [PEN]
+    statuses: [COMPLETED]
     categories:
       Almacén:
         products: ["Arroz 1kg", "Aceite de Girasol", "Fideos Largos"]
         price_min: 1
         price_max: 8
+        category_aliases: ["Almacén", "Almacen", "ALMACEN"]
       Lácteos:
         products: ["Leche Entera 1L", "Yogur Natural", "Queso Fresco"]
         price_min: 1
         price_max: 12
+        category_aliases: ["Lácteos", "Lacteos", "LACTEOS"]
       Bebidas:
         products: ["Agua Mineral 500ml", "Gaseosa Cola 2L", "Jugo de Naranja"]
         price_min: 1
         price_max: 10
+        category_aliases: ["Bebidas", "BEBIDAS", "bebidas"]
 
   moda:
     format: json
     date_format: iso8601
     ext: json
+    currencies: [PEN, USD]
+    statuses: [DELIVERED, DELIVERED, RETURNED, EXCHANGED]
     categories:
       Calzado:
         products: ["Zapatillas Urbanas", "Botas de Cuero", "Sandalias"]
         price_min: 20
         price_max: 150
+        category_aliases: ["Calzado", "CALZADO"]
       Ropa:
         products: ["Polera Básica", "Jean Slim Fit", "Chaqueta de Invierno"]
         price_min: 10
         price_max: 120
+        category_aliases: ["Ropa", "ROPA"]
+        product_aliases:
+          "Jean Slim Fit": ["Jean Slim Fit", "Jean Slim-Fit"]
       Accesorios:
         products: ["Gorra", "Cinturón de Cuero", "Bufanda"]
         price_min: 5
         price_max: 60
+        category_aliases: ["Accesorios", "ACCESORIOS"]
 
   marketplace:
     format: pdf
     date_format: free_text_es
     ext: pdf
+    currencies: [USD, USD, PEN, EUR]
+    statuses: [PAID, SHIPPED, DELIVERED]
     categories:
       Deportes:
         products: ["Balón de Fútbol", "Bicicleta Urbana", "Mancuernas 5kg"]
         price_min: 10
         price_max: 400
+        category_aliases: ["Deportes", "DEPORTES"]
       Juguetería:
         products: ["Set de Bloques", "Muñeca Articulada", "Auto a Control Remoto"]
         price_min: 5
         price_max: 80
+        category_aliases: ["Juguetería", "Jugueteria", "JUGUETES"]
       Mascotas:
         products: ["Alimento para Perro 3kg", "Correa Ajustable", "Cama para Gato"]
         price_min: 5
         price_max: 70
+        category_aliases: ["Mascotas", "MASCOTAS"]
 
 # Orden en que --division all procesa las 4 divisiones (SPEC-002/SPEC-007).
 division_order:

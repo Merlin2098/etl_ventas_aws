@@ -4,7 +4,7 @@ from pathlib import Path
 
 from openpyxl import Workbook
 
-FIELDNAMES = ["sale_id", "date", "category", "product", "quantity", "price"]
+FIELDNAMES = ["sale_id", "date", "category", "product", "quantity", "price", "currency", "status"]
 
 
 def write_excel(rows: list[dict], output_path: Path) -> None:

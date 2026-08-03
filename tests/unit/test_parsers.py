@@ -26,7 +26,7 @@ def _generate_clean_rows(division: str, date: datetime.date, count: int) -> list
     config = DIVISIONS[division]
     rows = []
     for _ in range(count):
-        record = generate_row(division, date, fake, config.categories)
+        record = generate_row(division, date, fake, config)
         row = {
             "sale_id": record.sale_id,
             "date": config.date_formatter(record.date),
@@ -34,6 +34,8 @@ def _generate_clean_rows(division: str, date: datetime.date, count: int) -> list
             "product": record.product,
             "quantity": record.quantity,
             "price": record.price,
+            "currency": record.currency,
+            "status": record.status,
         }
         rows.append(row)
     return rows

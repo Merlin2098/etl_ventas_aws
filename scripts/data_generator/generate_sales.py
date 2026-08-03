@@ -33,7 +33,7 @@ def generate_division(
 
     records = []
     for _ in range(rows):
-        record = generate_row(division, date, fake, config.categories)
+        record = generate_row(division, date, fake, config)
         row = asdict(record)
         row["date"] = config.date_formatter(record.date)
         row = maybe_corrupt(row, config.ext, error_rate)

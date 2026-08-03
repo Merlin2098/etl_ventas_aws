@@ -49,11 +49,13 @@ def _round_price(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def generate_row(division: str, date, fake: Faker, categories: dict) -> SaleRecord:
-    """`categories` is DivisionConfig.categories (name -> CategoryConfig), loaded
-    from src/generators/detalle-data.yaml (see src/generators/engine/config.py)."""
-    category_name = random.choice(list(categories.keys()))
-    category = categories[category_name]
+def generate_row(division: str, date, fake: Faker, config) -> SaleRecord:
+    """`config` is a DivisionConfig (see src/generators/engine/config.py), loaded
+    from src/generators/detalle-data.yaml. `category`/`product` are emitted using
+    a randomly chosen alias spelling to simulate inconsistent source catalogs
+    (SPEC-008 #7, #9); the canonical name only drives price/product selection."""
+    category_name = random.choice(list(config.categories.keys()))
+    category = config.categories[category_name]
     product = random.choice(category.products)
     quantity = random.randint(1, 10)
     price = _round_price(
@@ -61,13 +63,17 @@ def generate_row(division: str, date, fake: Faker, categories: dict) -> SaleReco
             str(random.uniform(float(category.price_min), float(category.price_max)))
         )
     )
+    category_written = random.choice(category.category_aliases)
+    product_written = random.choice(category.product_aliases.get(product, [product]))
     return SaleRecord(
         sale_id=str(uuid.uuid4()),
         date=date,
-        category=category_name,
-        product=product,
+        category=category_written,
+        product=product_written,
         quantity=quantity,
         price=price,
+        currency=random.choice(config.currencies),
+        status=random.choice(config.statuses),
     )
 
 

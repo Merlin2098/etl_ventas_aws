@@ -14,6 +14,8 @@ def test_maybe_corrupt_never_changes_row_at_zero_error_rate():
         "product": "P",
         "quantity": 1,
         "price": 10,
+        "currency": "PEN",
+        "status": "PENDING",
     }
     assert maybe_corrupt(row, "csv", 0.0) == row
 
@@ -26,6 +28,8 @@ def test_maybe_corrupt_always_changes_row_at_full_error_rate():
         "product": "P",
         "quantity": 1,
         "price": 10,
+        "currency": "PEN",
+        "status": "PENDING",
     }
     corrupted = [maybe_corrupt(dict(row), "csv", 1.0) for _ in range(20)]
     assert any(c != row for c in corrupted)
