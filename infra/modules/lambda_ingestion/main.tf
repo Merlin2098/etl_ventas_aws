@@ -104,19 +104,6 @@ resource "aws_lambda_function" "division" {
   tags = var.tags
 }
 
-# Policy 010 (IAM cross-module placement): the Lambda ARN lives in this
-# module, so the permission that lets S3 invoke it is declared here, not in
-# modules/s3_data_lake (which only receives these ARNs as an input variable).
-resource "aws_lambda_permission" "allow_s3_invoke" {
-  for_each = toset(var.divisions)
-
-  statement_id  = "AllowS3Invoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.division[each.key].function_name
-  principal     = "s3.amazonaws.com"
-  source_arn    = var.data_bucket_arn
-}
-
 # --- Transform Lambda (Silver -> Gold), one per division, mirroring the
 # ingestion resources above. Reuses the ingestion Lambda's own image (no
 # separate ECR repo/build): `transform/handler.py` is generic, not tied to a
@@ -221,14 +208,4 @@ resource "aws_lambda_function" "division_transform" {
   depends_on = [aws_cloudwatch_log_group.division_transform]
 
   tags = var.tags
-}
-
-resource "aws_lambda_permission" "allow_s3_invoke_transform" {
-  for_each = toset(var.divisions)
-
-  statement_id  = "AllowS3InvokeTransform"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.division_transform[each.key].function_name
-  principal     = "s3.amazonaws.com"
-  source_arn    = var.data_bucket_arn
 }

@@ -2,7 +2,9 @@
 
 ## Estado
 
-Abierto — pendiente de análisis por el equipo de plataforma / soporte AWS.
+Resuelto (2026-08-04) — ver "Resolución" al final del documento. Se descartó la
+necesidad de abrir caso de soporte AWS: la causa raíz estaba en el propio
+Terraform, no en la plataforma.
 
 ---
 
@@ -128,3 +130,99 @@ investigación; **la segunda sigue sin solución conocida**:
 - `tests/e2e/test_pipeline_aws.py`
 - `specs/pipeline/SPEC-003_Pipeline_Procesamiento.md` (flujo esperado Bronze -> Silver -> Gold)
 - `specs/pipeline/SPEC-004_Infraestructura_Terraform.md`
+
+---
+
+## Resolución
+
+**Causa raíz real: un `depends_on` mal cableado en Terraform, no un problema de
+plataforma AWS.**
+
+En `infra/modules/s3_data_lake/main.tf` (versión previa a esta resolución), el
+recurso `aws_s3_bucket_notification.data_lake_ingestion` tenía:
+
+```hcl
+depends_on = [var.lambda_permission_dependency]
+```
+
+Y en `infra/main.tf`, `lambda_permission_dependency` se poblaba así:
+
+```hcl
+lambda_permission_dependency = merge(
+  module.lambda_ingestion.function_names,
+  module.lambda_ingestion.transform_function_names,
+)
+```
+
+Dos problemas independientes en esas tres líneas:
+
+1. **El `depends_on` apuntaba a nombres de función, no a los recursos
+   `aws_lambda_permission`.** Un `depends_on` sobre un valor que no referencia
+   el recurso de permisos no crea ninguna arista de dependencia con
+   `aws_lambda_permission` — Terraform no tenía garantía de que los 8 permisos
+   existieran antes de registrar las 8 reglas de notificación.
+2. **El `merge()` de dos mapas con las mismas claves de división (`electronica`,
+   `moda`, ...) colapsaba 8 entradas en 4**: las de `transform_function_names`
+   pisaban a las de `function_names`. Aun si el `depends_on` hubiera apuntado a
+   los recursos correctos, solo habría cubierto la mitad del pipeline.
+
+**Por qué esto explica exactamente el síntoma observado**, incluyendo lo que
+parecía inexplicable durante la investigación:
+
+- **Ingestion funcionaba, transform no.** No fue casualidad ni el carácter
+  `=`. En la creación inicial, Terraform crea las 8 reglas de notificación en
+  una sola llamada a `PutBucketNotificationConfiguration`. S3 valida los
+  permisos **en el momento de esa llamada**. Los `aws_lambda_permission` de
+  ingestion se crearon antes por orden fortuito del grafo de recursos; los de
+  transform no tenían esa garantía.
+- **Las 8 reglas aparecían en `get-bucket-notification-configuration` y
+  coincidían con el state** (líneas 49, 66 y 78 de este documento). Eso era
+  correcto — la configuración *se escribió* — y es justo lo que despistó la
+  investigación: el problema no era la config almacenada, sino que la
+  suscripción de entrega de eventos para esas 4 reglas nunca quedó activa del
+  lado de S3.
+- **Recrear la notificación a mano no lo arregló** (líneas 58-60). Coherente:
+  recrearla vía CLI reescribe la misma configuración, pero eso no repara el
+  vínculo de entrega si S3 lo rechazó silenciosamente en su momento de
+  creación original.
+
+**Hipótesis del carácter `=` descartada con evidencia interna del propio
+repo**, sin necesidad de caso de soporte AWS: los prefijos
+`quarantine/store=<division>/` y `gold/store=<division>/` usan el mismo
+carácter `=` en sus rutas de escritura y nunca presentaron problema. S3 admite
+`=` en `filter_prefix` (y en el patrón de eventos de EventBridge) sin
+restricción — la evidencia listada en "Hipótesis no descartadas / pendientes
+de investigar" (línea 99 original) señalaba una diferencia estructural real
+entre `bronze/` y `silver/store=`, pero la diferencia relevante nunca fue el
+carácter: fue que las 4 reglas de `transform-*` cayeron del lado equivocado
+del bug de `merge()`.
+
+### Solución adoptada
+
+Se migró el mecanismo de trigger de notificación S3 directa a **EventBridge**
+(Opción C evaluada durante el diagnóstico): el bucket publica eventos
+`Object Created` al bus de eventos de la cuenta (`aws_s3_bucket_notification`
+con `eventbridge = true`), y 8 reglas de EventBridge (una por división y por
+etapa, en el nuevo módulo `infra/modules/eventbridge/`) enrutan cada evento a
+su Lambda, con su propio `aws_lambda_permission` scopeado al ARN de la regla.
+
+Esta migración no es solo un rodeo al bug — lo corrige de raíz para esta
+*clase* de problema: `source_arn = aws_cloudwatch_event_rule...arn` es una
+referencia real de Terraform, así que **es** la arista de dependencia que
+antes faltaba. Regla y permiso viven en el mismo módulo, por lo que no hay
+forma de que ese ordenamiento vuelva a romperse en silencio entre módulos.
+
+Detalle completo del diseño en SPEC-003 ("Eventos de S3 y enrutamiento con
+EventBridge") y SPEC-004 (sección `modules/eventbridge`, y la nota sobre
+Policy 010 aplicada a la nueva dirección de la dependencia).
+
+### Criterio de cierre
+
+`tests/e2e/test_pipeline_aws.py` en verde para las 4 divisiones (no solo
+`electronica`), con objetos Gold nuevos en
+`gold/store=<division>/date=2026-08-02/`, según el paso 5 de "Próximos pasos
+sugeridos" de este mismo documento. Verificado adicionalmente por las nuevas
+aserciones de `tests/aws/test_smoke.py` sobre reglas, targets y permisos de
+EventBridge — la clase de verificación que, de haber existido antes, habría
+detectado este incidente en el propio `terraform apply` en vez de en la
+corrida E2E.

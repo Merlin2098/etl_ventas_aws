@@ -2,7 +2,7 @@
 
 **Proyecto:** Data Lake Serverless para Retail con AWS
 **Metodología:** Spec Driven Development (SDD)
-**Cantidad de SPECs:** 7
+**Cantidad de SPECs:** 8
 **Objetivo:** Definir el conjunto mínimo de especificaciones necesarias para construir la demo completa mediante IA (Claude Code / ChatGPT) sin generar documentación innecesaria.
 
 ---
@@ -59,7 +59,7 @@ Describir el comportamiento funcional completo del pipeline de datos, desde la g
 - Generación de archivos
 - Carga hacia Amazon S3
 - Organización del Data Lake
-- Eventos de S3
+- Eventos de S3 y enrutamiento con EventBridge
 - Ejecución automática de Lambda
 - Detección del tipo de archivo
 - Conversión hacia formato estándar
@@ -158,6 +158,22 @@ Definir el script Python que genera los datasets sintéticos de ventas para las 
 
 ---
 
+# SPEC-008 - Complejización del Generador de Datasets Retail
+
+## Objetivo
+
+Incrementar el nivel de realismo de los datasets utilizados durante el laboratorio para que representen escenarios similares a los encontrados en proyectos empresariales de Data Engineering sobre AWS, introduciendo problemas reales de integración y calidad de datos en vez de simplemente agregar columnas.
+
+## Contenido esperado
+
+- Categorías consideradas (dominios de negocio simulados)
+- Principios de diseño
+- Propuestas de complejización
+- Beneficios para el laboratorio
+- Resultado esperado
+
+---
+
 # Dependencia entre SPECs
 
 ```text
@@ -166,6 +182,8 @@ SPEC-001
 ├── SPEC-002
 │      │
 │      └── SPEC-007
+│             │
+│             └── SPEC-008
 │
 ├── SPEC-003
 │      │
@@ -189,6 +207,7 @@ SPEC-001
 | 5     | SPEC-005 - Implementación de la Lambda        | Media     |
 | 6     | SPEC-006 - Analítica y Validación End-to-End | Media     |
 | 7     | SPEC-007 - Generadores de Datos Sintéticos    | Alta      |
+| 8     | SPEC-008 - Complejización del Generador de Datasets Retail | Media |
 
 ---
 

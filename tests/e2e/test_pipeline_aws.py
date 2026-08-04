@@ -1,8 +1,9 @@
 # End-to-end test of the deployed pipeline (Bronze upload -> ingestion Lambda ->
-# Silver -> transform Lambda -> Gold), driven entirely through real S3 events
-# against the AWS infrastructure created by `terraform -chdir=infra apply`.
-# Uploads the real sample files under data/ and polls S3 for the Silver/Gold
-# objects the Lambdas are expected to produce (SPEC-004/SPEC-005).
+# Silver -> transform Lambda -> Gold), driven entirely through real S3 Object
+# Created events routed via EventBridge, against the AWS infrastructure created
+# by `terraform -chdir=infra apply`. Uploads the real sample files under data/
+# and polls S3 for the Silver/Gold objects the Lambdas are expected to produce
+# (SPEC-004/SPEC-005).
 from __future__ import annotations
 
 import datetime
@@ -32,7 +33,7 @@ DIVISION_FILES = {
 }
 
 POLL_INTERVAL_SECONDS = 5
-POLL_TIMEOUT_SECONDS = 120
+POLL_TIMEOUT_SECONDS = 180
 
 
 @pytest.fixture(scope="module")

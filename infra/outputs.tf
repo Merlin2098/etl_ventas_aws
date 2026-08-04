@@ -45,6 +45,16 @@ output "lambda_log_group_names" {
   value       = module.lambda_ingestion.log_group_names
 }
 
+output "eventbridge_rule_names" {
+  description = "EventBridge rule name per division, ingestion stage (bronze/ -> ingestion Lambda)."
+  value       = module.eventbridge.rule_names
+}
+
+output "eventbridge_transform_rule_names" {
+  description = "EventBridge rule name per division, transform stage (silver/ -> transform Lambda)."
+  value       = module.eventbridge.transform_rule_names
+}
+
 output "glue_database_name" {
   description = "Glue Catalog database name."
   value       = module.glue_catalog.database_name

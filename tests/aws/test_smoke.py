@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 pytestmark = pytest.mark.cloud
@@ -60,6 +62,69 @@ def test_athena_workgroup_exists(aws_client, tf_outputs):
     result = athena.get_work_group(WorkGroup=workgroup_name)
     assert result["WorkGroup"]["Name"] == workgroup_name
     print(f"Athena workgroup OK: {workgroup_name}")
+
+
+def test_bucket_eventbridge_notifications_enabled(aws_client, tf_outputs):
+    bucket = tf_outputs["data_bucket_name"]["value"]
+    s3 = aws_client("s3")
+    config = s3.get_bucket_notification_configuration(Bucket=bucket)
+    assert config.get("EventBridgeConfiguration") is not None, (
+        f"EventBridge notifications not enabled on bucket {bucket}"
+    )
+    print(f"EventBridge notifications enabled on bucket: {bucket}")
+
+
+@pytest.mark.parametrize("division", DIVISIONS)
+def test_ingestion_eventbridge_rule_exists_and_enabled(aws_client, tf_outputs, division):
+    rule_name = tf_outputs["eventbridge_rule_names"]["value"][division]
+    events = aws_client("events")
+    rule = events.describe_rule(Name=rule_name)
+    assert rule["State"] == "ENABLED", f"Rule {rule_name} is not ENABLED"
+    print(f"EventBridge rule OK ({division}, ingestion): {rule_name}")
+
+
+@pytest.mark.parametrize("division", DIVISIONS)
+def test_transform_eventbridge_rule_exists_and_enabled(aws_client, tf_outputs, division):
+    rule_name = tf_outputs["eventbridge_transform_rule_names"]["value"][division]
+    events = aws_client("events")
+    rule = events.describe_rule(Name=rule_name)
+    assert rule["State"] == "ENABLED", f"Rule {rule_name} is not ENABLED"
+    print(f"EventBridge rule OK ({division}, transform): {rule_name}")
+
+
+@pytest.mark.parametrize("division", DIVISIONS)
+def test_ingestion_eventbridge_rule_targets_correct_lambda(aws_client, tf_outputs, division):
+    rule_name = tf_outputs["eventbridge_rule_names"]["value"][division]
+    expected_arn = tf_outputs["lambda_function_arns"]["value"][division]
+    events = aws_client("events")
+    targets = events.list_targets_by_rule(Rule=rule_name)["Targets"]
+    assert len(targets) == 1, f"Expected exactly 1 target for {rule_name}, got {len(targets)}"
+    assert targets[0]["Arn"] == expected_arn
+    print(f"EventBridge target OK ({division}, ingestion): {rule_name} -> {expected_arn}")
+
+
+@pytest.mark.parametrize("division", DIVISIONS)
+def test_ingestion_lambda_has_eventbridge_invoke_permission(aws_client, tf_outputs, division):
+    arn = tf_outputs["lambda_function_arns"]["value"][division]
+    function_name = arn.split(":")[-1]
+    rule_name = tf_outputs["eventbridge_rule_names"]["value"][division]
+
+    events = aws_client("events")
+    rule_arn = events.describe_rule(Name=rule_name)["Arn"]
+
+    lambda_client = aws_client("lambda")
+    policy = json.loads(lambda_client.get_policy(FunctionName=function_name)["Policy"])
+    matching = [
+        s
+        for s in policy["Statement"]
+        if s.get("Principal", {}).get("Service") == "events.amazonaws.com"
+        and s.get("Condition", {}).get("ArnLike", {}).get("AWS:SourceArn") == rule_arn
+    ]
+    assert matching, (
+        f"No events.amazonaws.com invoke permission scoped to rule {rule_arn} "
+        f"found on {function_name}"
+    )
+    print(f"Lambda resource policy OK ({division}, ingestion): EventBridge invoke permission present")
 
 
 def test_budget_exists(aws_client, tf_outputs):

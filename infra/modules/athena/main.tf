@@ -1,5 +1,6 @@
 resource "aws_athena_workgroup" "this" {
-  name = "${var.name_prefix}-workgroup"
+  name          = "${var.name_prefix}-workgroup"
+  force_destroy = true # demo/ephemeral environment (SPEC-004 "Flujo de destrucción")
 
   configuration {
     enforce_workgroup_configuration    = true

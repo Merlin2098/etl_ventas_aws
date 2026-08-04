@@ -15,9 +15,11 @@ locals {
 
   # Computed the same way as modules/s3_data_lake's internal bucket name, so
   # lambda_ingestion can receive the bucket name/ARN as plain strings without
-  # depending on the aws_s3_bucket resource itself (which in turn depends on
-  # lambda_ingestion for its notification ARNs — see module dependency order
-  # below). This avoids a circular module dependency.
+  # depending on the aws_s3_bucket resource itself. Only lambda_ingestion still
+  # needs this: its IAM policies reference the bucket ARN directly, and
+  # s3_data_lake no longer takes Lambda ARNs as input (that dependency moved to
+  # module.eventbridge, see below), so this workaround is now scoped to
+  # lambda_ingestion alone rather than avoiding a cycle across three modules.
   data_bucket_name = "${local.name_prefix}-${data.aws_caller_identity.current.account_id}-datalake"
   data_bucket_arn  = "arn:aws:s3:::${local.data_bucket_name}"
 }
@@ -81,10 +83,11 @@ resource "aws_sns_topic_subscription" "budget_email" {
 }
 
 # --- Retail data lake demo (SPEC-004) ---
-# Deployment order: ecr -> lambda_ingestion -> s3_data_lake -> glue_catalog -> athena.
-# `ecr` must exist and be populated (scripts/docker_push.sh) before the first
-# apply that creates `lambda_ingestion`, since aws_lambda_function with
-# package_type = "Image" requires the image to already exist in ECR.
+# Deployment order: ecr -> lambda_ingestion -> s3_data_lake -> eventbridge ->
+# glue_catalog -> athena. `ecr` must exist and be populated
+# (scripts/docker_push.sh) before the first apply that creates
+# `lambda_ingestion`, since aws_lambda_function with package_type = "Image"
+# requires the image to already exist in ECR.
 
 module "ecr" {
   source = "./modules/ecr"
@@ -112,17 +115,23 @@ module "lambda_ingestion" {
 module "s3_data_lake" {
   source = "./modules/s3_data_lake"
 
-  name_prefix                    = local.name_prefix
-  account_id                     = data.aws_caller_identity.current.account_id
-  force_destroy                  = var.data_bucket_force_destroy
-  divisions                      = var.divisions
-  lambda_function_arns           = module.lambda_ingestion.function_arns
-  transform_lambda_function_arns = module.lambda_ingestion.transform_function_arns
-  lambda_permission_dependency = merge(
-    module.lambda_ingestion.function_names,
-    module.lambda_ingestion.transform_function_names,
-  )
-  tags = local.common_tags
+  name_prefix   = local.name_prefix
+  account_id    = data.aws_caller_identity.current.account_id
+  force_destroy = var.data_bucket_force_destroy
+  tags          = local.common_tags
+}
+
+module "eventbridge" {
+  source = "./modules/eventbridge"
+
+  name_prefix                     = local.name_prefix
+  divisions                       = var.divisions
+  data_bucket_name                = module.s3_data_lake.bucket_name
+  lambda_function_arns            = module.lambda_ingestion.function_arns
+  lambda_function_names           = module.lambda_ingestion.function_names
+  transform_lambda_function_arns  = module.lambda_ingestion.transform_function_arns
+  transform_lambda_function_names = module.lambda_ingestion.transform_function_names
+  tags                            = local.common_tags
 }
 
 module "glue_catalog" {

@@ -105,8 +105,8 @@ ORDER BY category, revenue DESC;
 El laboratorio se considera funcionando correctamente cuando, tras ejecutar los 4 generadores para una fecha dada:
 
 1. Los 4 archivos de origen existen en `bronze/<division>/date=<fecha>/`.
-2. Cada archivo disparó su Lambda de ingesta correspondiente (evidencia: logs de CloudWatch, ver abajo).
-3. Existen archivos Parquet en `silver/store=<division>/date=<fecha>/` para las 4 divisiones, lo que a su vez disparó la Lambda de transformación correspondiente.
+2. Cada archivo disparó, vía EventBridge, su Lambda de ingesta correspondiente (evidencia: logs de CloudWatch, ver abajo).
+3. Existen archivos Parquet en `silver/store=<division>/date=<fecha>/` para las 4 divisiones, lo que a su vez disparó, vía EventBridge, la Lambda de transformación correspondiente.
 4. Existen archivos Parquet en `gold/store=<division>/date=<fecha>/` para las 4 divisiones.
 5. Existen archivos de error en `quarantine/store=<division>/date=<fecha>/` para las filas inválidas generadas intencionalmente (SPEC-002).
 6. El Glue Crawler, tras ejecutarse, registra la tabla `sales` con las particiones de la fecha procesada.
@@ -122,7 +122,9 @@ El laboratorio se considera funcionando correctamente cuando, tras ejecutar los 
 
 - `terraform plan` sin cambios pendientes tras el último `apply` (infraestructura declarada = infraestructura real).
 - Las 8 funciones Lambda (4 de ingesta + 4 de transformación) existen y referencian una imagen ECR válida (no `latest`, ver SPEC-004/SPEC-005).
-- Los outputs de Terraform (`lambda_function_arns`, `glue_database_name`, `athena_workgroup_name`, etc., ver SPEC-004) resuelven a recursos existentes.
+- Las 8 reglas de EventBridge (4 de ingesta + 4 de transformación) existen, están `ENABLED`, y cada una tiene exactamente un target apuntando a la Lambda correcta. Cada Lambda tiene un `aws_lambda_permission` con `principal = events.amazonaws.com` scopeado al ARN de su regla (ver SPEC-004) — esta verificación es la que faltaba y permitió que INCIDENTE-001 pasara desapercibido hasta la corrida E2E.
+- El bucket de datos tiene las notificaciones a EventBridge habilitadas (`EventBridgeConfiguration` no nulo).
+- Los outputs de Terraform (`lambda_function_arns`, `eventbridge_rule_names`, `glue_database_name`, `athena_workgroup_name`, etc., ver SPEC-004) resuelven a recursos existentes.
 
 ## Validación del procesamiento
 
@@ -249,15 +251,16 @@ Estos tests son un complemento a la validación E2E manual descrita arriba, no u
 reemplazo: dan una señal rápida de "la infraestructura existe y es accesible" antes de
 invertir tiempo en la validación funcional completa durante el webinar.
 
+Además, `tests/e2e/test_pipeline_aws.py` (marcador `pytest.mark.cloud`, mismo mecanismo de
+ejecución) sí ejercita el pipeline end-to-end **contra AWS real**: sube un archivo de origen
+real por división a `bronze/`, deja que el trigger de EventBridge dispare ambas etapas sin
+intervención manual, y hace polling sobre S3 hasta encontrar los objetos Silver y Gold
+esperados (o falla por timeout, ver `POLL_TIMEOUT_SECONDS`). Es el criterio de cierre de
+INCIDENTE-001.
+
 ---
 
 # Fuera de alcance
 
-- Tests de integración E2E automatizados **contra AWS real** que invoquen Lambdas
-  desplegadas y verifiquen resultados en Athena sin intervención humana; esta demo usa
-  verificación manual/guiada durante el webinar para esa parte, complementada por los smoke
-  tests de infraestructura descritos arriba. La lógica de negocio del pipeline (parseo,
-  Silver, Gold, cuarentena) sí cuenta con un test E2E automatizado que corre enteramente en
-  local sin AWS (ver "Validación local pre-despliegue").
 - Alertas o dashboards de monitoreo continuo (QuickSight, CloudWatch Dashboards) — mencionado como evolución futura en SPEC-001.
 - Validación de performance o carga (el volumen de datos es intencionalmente pequeño, ver SPEC-002).

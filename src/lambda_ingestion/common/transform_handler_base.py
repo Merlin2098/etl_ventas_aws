@@ -9,6 +9,7 @@ import pyarrow.parquet as pq
 
 from .errors import RowValidationError
 from .logging_config import get_logger
+from .s3_event import extract_s3_location
 from .s3_writer import write_gold, write_quarantine
 from .schema import validate_and_normalize
 
@@ -42,9 +43,7 @@ def process_transform_event(event: dict, context) -> dict:
         correlation_id=correlation_id,
     )
 
-    record = event["Records"][0]["s3"]
-    source_bucket = record["bucket"]["name"]
-    source_key = record["object"]["key"]
+    source_bucket, source_key = extract_s3_location(event)
     log.info("Processing started", extra={"bucket": source_bucket, "key": source_key})
 
     # `date` is a Hive partition column (silver/store=<division>/date=<fecha>/...),

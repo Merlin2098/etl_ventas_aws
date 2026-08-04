@@ -1,0 +1,86 @@
+// docs/architecture.dot
+// Arquitectura del pipeline (flujo de datos + módulos Terraform que lo crean).
+// Generar SVG/PNG: dot -Tsvg docs/architecture.dot -o docs/architecture.svg
+// Mantener sincronizado con infra/ y src/ en cada cambio estructural — ver docs/architecture.md.
+
+digraph architecture {
+  graph [rankdir=TB, fontname="Helvetica", fontsize=11, labelloc=t, label="Data Lake Serverless para Retail — Arquitectura (actualizada 2026-08-04)"];
+  node  [fontname="Helvetica", fontsize=10, shape=box, style="rounded,filled", fillcolor="#F5F5F5"];
+  edge  [fontname="Helvetica", fontsize=9];
+
+  // ---------- Generadores ----------
+  subgraph cluster_gen {
+    label = "Generación (manual, Python)";
+    style = dashed; color = "#888888";
+    gen [label="Generadores por división\n(electronica/supermercado/moda/marketplace)\nCSV / Excel / JSON / PDF", fillcolor="#E8E8E8"];
+  }
+
+  // ---------- Data Lake ----------
+  subgraph cluster_lake {
+    label = "Amazon S3 — bucket único (module.s3_data_lake)";
+    style = solid; color = "#4472C4";
+    bronze      [label="bronze/<division>/\ndate=YYYY-MM-DD/", fillcolor="#DDEBF7"];
+    silver      [label="silver/store=<division>/\ndate=YYYY-MM-DD/\n(Parquet)", fillcolor="#DDEBF7"];
+    gold        [label="gold/store=<division>/\ndate=YYYY-MM-DD/\n(Parquet)", fillcolor="#DDEBF7"];
+    quarantine  [label="quarantine/store=<division>/\ndate=YYYY-MM-DD/\n(errores JSON, acumulativo)", fillcolor="#FCE4D6"];
+    athena_res  [label="athena-results/", fillcolor="#DDEBF7"];
+  }
+
+  // ---------- EventBridge ----------
+  subgraph cluster_eventbridge {
+    label = "Amazon EventBridge (module.eventbridge)\nbus por defecto — reemplaza la notificación S3 directa (INCIDENTE-001)";
+    style = solid; color = "#ED7D31";
+    eb_rule_ingestion [label="8 aws_cloudwatch_event_rule\n+ aws_cloudwatch_event_target\n+ aws_lambda_permission\n(4 ingesta + 4 transform,\nfiltro por prefix bronze/<div>/\ny silver/store=<div>/)", fillcolor="#FBE5D6"];
+  }
+
+  // ---------- Lambdas ----------
+  subgraph cluster_lambda {
+    label = "AWS Lambda (module.lambda_ingestion) — Docker/ECR";
+    style = solid; color = "#548235";
+    ingestion  [label="Lambda ingesta ×4\n(una por división/formato)\nparse → normalize_silver → write silver/quarantine", fillcolor="#E2EFDA"];
+    transform  [label="Lambda transform ×4\n(una por división)\nread silver → validate_and_normalize → write gold/quarantine", fillcolor="#E2EFDA"];
+  }
+
+  // ---------- Catálogo y consulta ----------
+  subgraph cluster_catalog {
+    label = "Catálogo y consulta";
+    style = solid; color = "#7030A0";
+    crawler [label="AWS Glue Crawler\n(module.glue_catalog)\napunta a gold/", fillcolor="#EAD9F2"];
+    catalog [label="Glue Data Catalog\n(database + tabla sales)", fillcolor="#EAD9F2"];
+    athena  [label="Amazon Athena\n(module.athena, workgroup)", fillcolor="#EAD9F2"];
+  }
+
+  // ---------- Infra de soporte ----------
+  subgraph cluster_support {
+    label = "Infra de soporte (raíz + módulos)";
+    style = dashed; color = "#888888";
+    ecr     [label="Amazon ECR ×4\n(module.ecr)\nuna imagen por división,\ncompartida ingesta+transform", fillcolor="#E8E8E8"];
+    iam     [label="IAM roles + policies\n(least privilege por función,\ndeclarados junto a cada módulo\nque posee el recurso — Policy 010)", fillcolor="#E8E8E8"];
+    logs    [label="CloudWatch Log Groups\n(uno por función Lambda + crawler + data jobs)", fillcolor="#E8E8E8"];
+    budget  [label="AWS Budgets + SNS\n(alerta 80% actual / 100% forecast)", fillcolor="#E8E8E8"];
+  }
+
+  // ---------- Flujo de datos ----------
+  gen -> bronze [label="PutObject"];
+  bronze -> eb_rule_ingestion [label="Object Created\n(EventBridge notification)"];
+  eb_rule_ingestion -> ingestion [label="invoke"];
+  ingestion -> silver [label="filas válidas\n(delete-then-write)"];
+  ingestion -> quarantine [label="filas inválidas"];
+  silver -> eb_rule_ingestion [label="Object Created\n(EventBridge notification)", style=dashed];
+  eb_rule_ingestion -> transform [label="invoke", style=dashed];
+  transform -> gold [label="filas válidas\n(delete-then-write)"];
+  transform -> quarantine [label="filas inválidas"];
+  gold -> crawler [label="crawl"];
+  crawler -> catalog [label="registra tabla + particiones"];
+  catalog -> athena [label="consulta SQL"];
+  athena -> athena_res [label="resultados"];
+
+  // ---------- Relaciones IAM / soporte (no data flow) ----------
+  ecr -> ingestion [label="image_uri", style=dotted, color="#888888"];
+  ecr -> transform [label="image_uri\n(misma imagen, distinto CMD)", style=dotted, color="#888888"];
+  iam -> ingestion [style=dotted, color="#888888"];
+  iam -> transform [style=dotted, color="#888888"];
+  iam -> crawler [style=dotted, color="#888888"];
+  logs -> ingestion [style=dotted, color="#888888"];
+  logs -> transform [style=dotted, color="#888888"];
+}

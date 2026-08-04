@@ -20,7 +20,7 @@ Ejecución manual de generadores (Python)
         ▼
  Amazon S3 (Bronze) — partición por fecha
         │
-S3 Event Notification (ObjectCreated, prefijo bronze/<division>/)
+EventBridge (Object Created, prefijo bronze/<division>/)
         │
         ▼
  Lambda de ingesta (Docker) — una función por división/formato
@@ -32,7 +32,7 @@ S3 Event Notification (ObjectCreated, prefijo bronze/<division>/)
         └── Filas inválidas ───────► Amazon S3 (Quarantine)
                 │
                 ▼
-        S3 Event Notification (ObjectCreated, prefijo silver/store=<division>/)
+        EventBridge (Object Created, prefijo silver/store=<division>/)
                 │
                 ▼
          Lambda de transformación (Docker) — una función por división
@@ -44,7 +44,7 @@ S3 Event Notification (ObjectCreated, prefijo bronze/<division>/)
                 └── Filas inválidas ───────► Amazon S3 (Quarantine)
 ```
 
-Cada división tiene su propia función Lambda de ingesta (4 en total) y su propia función Lambda de transformación (4 en total, 8 en total entre ambas etapas). Las Lambdas de ingesta están empaquetadas en una imagen Docker independiente por división, con el parser de su formato; las de transformación comparten la misma imagen que la Lambda de ingesta de su división (no dependen del formato de origen), diferenciándose solo por el comando de entrada de la función (ver SPEC-004/SPEC-005). No existe una Lambda única con router interno: la selección de parser/etapa queda resuelta por la propia suscripción del evento S3 a cada función (ver "Eventos de S3").
+Cada división tiene su propia función Lambda de ingesta (4 en total) y su propia función Lambda de transformación (4 en total, 8 en total entre ambas etapas). Las Lambdas de ingesta están empaquetadas en una imagen Docker independiente por división, con el parser de su formato; las de transformación comparten la misma imagen que la Lambda de ingesta de su división (no dependen del formato de origen), diferenciándose solo por el comando de entrada de la función (ver SPEC-004/SPEC-005). No existe una Lambda única con router interno: la selección de parser/etapa queda resuelta por la regla de EventBridge que enruta cada evento a su función (ver "Eventos de S3").
 
 ---
 
@@ -52,7 +52,7 @@ Cada división tiene su propia función Lambda de ingesta (4 en total) y su prop
 
 - Cada división tiene un generador Python independiente (ver SPEC-002).
 - Durante el webinar, la llegada diaria de archivos se simula mediante **ejecución manual** de los generadores: el presentador corre cada script (o los cinco en secuencia) para mostrar el pipeline reaccionando en vivo, archivo por archivo.
-- No existe un orquestador automático ni un scheduler en el alcance de esta demo; queda como evolución futura (SPEC-001 - Visión General, sección "Evoluciones futuras": EventBridge Scheduler).
+- No existe un orquestador automático ni un scheduler en el alcance de esta demo; queda como evolución futura (SPEC-001 - Visión General, sección "Evoluciones futuras": EventBridge Scheduler). EventBridge sí se usa en el pipeline (ver "Eventos de S3"), pero únicamente como enrutador de eventos `Object Created` — no como scheduler; son dos capacidades distintas del mismo servicio.
 
 ---
 
@@ -84,15 +84,17 @@ s3://<bucket>/bronze/marketplace/date=2026-08-01/marketplace_2026-08-01.pdf
 ```
 
 La división queda identificada tanto en el prefijo del path como en el nombre de archivo.
-El prefijo (`bronze/<division>/`) es lo que permite filtrar la S3 Event Notification por
-división (ver "Eventos de S3"): al ser un prefijo **literal** y estático, `filter_prefix`
-puede aislarlo sin depender de la fecha, que es variable. Con un layout `bronze/date=.../`
-(fecha primero) esto no sería posible, porque la fecha cambia en cada ejecución y ningún
-prefijo fijo podría aislar la división.
+El prefijo (`bronze/<division>/`) es lo que permite filtrar el evento de EventBridge por
+división (ver "Eventos de S3"): la división va primero en el path por convención y
+legibilidad, no por una limitación técnica del filtro — el `event_pattern` de EventBridge
+admite `prefix` sobre cualquier segmento de la key (incluido uno seguido de un segmento
+variable como la fecha), a diferencia del `filter_prefix` de la notificación S3 directa que
+usaba este pipeline antes de migrar a EventBridge, que solo podía anclarse al inicio de la
+key. Un layout `bronze/date=.../` (fecha primero) también sería viable hoy.
 
 ## Capa Silver
 
-- Partición por **división y fecha**, en formato Parquet, mismo estilo de partición Hive que Gold (a diferencia de Bronze, que no usa `store=` — ver razonamiento arriba):
+- Partición por **división y fecha**, en formato Parquet, mismo estilo de partición Hive que Gold (a diferencia de Bronze, que no usa `store=` por convención heredada del diseño original — ver razonamiento arriba):
 
 ```
 s3://<bucket>/silver/store=<division>/date=YYYY-MM-DD/part-*.parquet
@@ -123,13 +125,15 @@ s3://<bucket>/quarantine/store=<division>/date=YYYY-MM-DD/errors-*.json
 
 ---
 
-# Eventos de S3
+# Eventos de S3 y enrutamiento con EventBridge
 
-- Se configura una única **S3 Event Notification** (`s3:ObjectCreated:*`) sobre el bucket de datos (AWS solo permite un recurso de este tipo por bucket), con dos conjuntos de bloques `lambda_function`, uno por etapa:
-  - Ingesta: un bloque por división, filtrado por `filter_prefix = "bronze/<division>/"` (ej. `filter_prefix = "bronze/electronica/"` para la Lambda de ingesta de Electrónica), invoca la Lambda de ingesta correspondiente.
-  - Transformación: un bloque por división, filtrado por `filter_prefix = "silver/store=<division>/"`, invoca la Lambda de transformación correspondiente.
-- Al ser prefijos literales y estáticos (sin depender de la fecha, que es variable en cada archivo), `filter_prefix` aísla la división y la etapa de forma inequívoca — ver "Organización del Data Lake" para el razonamiento completo.
+- El bucket de datos tiene habilitadas las notificaciones a EventBridge (`aws_s3_bucket_notification` con `eventbridge = true`): cada `PutObject` exitoso se publica como evento `Object Created` (`source: aws.s3`) en el bus de eventos por defecto de la cuenta, sin pasar por una suscripción directa S3 -> Lambda.
+- Se configuran 8 **reglas de EventBridge** (`aws_cloudwatch_event_rule`), una por división y por etapa, cada una con su propio `aws_cloudwatch_event_target` apuntando a la Lambda correspondiente:
+  - Ingesta: una regla por división, con `event_pattern` filtrando `detail.bucket.name` (el bucket de datos) y `detail.object.key` por `prefix = "bronze/<division>/"` (ej. `bronze/electronica/` para la Lambda de ingesta de Electrónica), invoca la Lambda de ingesta correspondiente.
+  - Transformación: una regla por división, con el mismo patrón filtrando `prefix = "silver/store=<division>/"`, invoca la Lambda de transformación correspondiente.
+- Cada regla tiene su propio `aws_lambda_permission` (`principal = "events.amazonaws.com"`, `source_arn` = ARN de la regla), scopeado 1:1 a esa regla — a diferencia de una notificación S3 directa, donde un único recurso `aws_s3_bucket_notification` por bucket forzaba agrupar las 8 suscripciones en un mismo bloque de configuración.
 - No se utiliza SQS como buffer intermedio: cada archivo dispara una invocación independiente de la Lambda correspondiente a su etapa (modelo simple, adecuado para el volumen y propósito didáctico de esta demo).
+- Detalle de infraestructura (módulo, recursos exactos, IAM) en SPEC-004.
 
 ---
 
@@ -142,9 +146,9 @@ s3://<bucket>/quarantine/store=<division>/date=YYYY-MM-DD/errors-*.json
 
 # Detección del tipo de archivo
 
-- La selección de la función Lambda correcta ocurre a nivel de infraestructura (filtro de la S3 Event Notification por prefijo `bronze/<division>/`), no dentro de la función.
+- La selección de la función Lambda correcta ocurre a nivel de infraestructura (`event_pattern` de la regla de EventBridge, filtrando por prefijo `bronze/<division>/`), no dentro de la función.
 - Dentro de cada Lambda, el formato es conocido de antemano (una función = un formato = un parser), por lo que no existe lógica de detección/enrutamiento en tiempo de ejecución.
-- Si un archivo llega a `bronze/` bajo un prefijo de división que no coincide con ninguna notificación configurada, ninguna Lambda se invoca; el archivo queda huérfano en Bronze (ver "Flujo de errores").
+- Si un archivo llega a `bronze/` bajo un prefijo de división que no coincide con ninguna regla configurada, ninguna Lambda se invoca; el archivo queda huérfano en Bronze (ver "Flujo de errores").
 
 ---
 
@@ -170,8 +174,8 @@ Ocurre en dos etapas, cada una en su propia Lambda (ver SPEC-002 esquemas Silver
 | Nivel | Caso | Acción |
 |-------|------|--------|
 | Fila | Campo faltante, tipo inválido, fecha no parseable, cantidad/precio no numérico o negativo (etapa ingesta o transformación) | La fila se envía a `quarantine/`; el resto del archivo continúa procesándose. Dado que la transformación reaplica las mismas reglas de campo que ya pasó Silver, en la práctica una fila solo cae en cuarentena en la etapa de ingesta — la transformación puede rechazarla igualmente si se reprocesara un Parquet Silver alterado manualmente. |
-| Archivo | Nombre de archivo no coincide con ningún patrón de notificación S3 configurado, archivo corrupto o ilegible | Si ninguna Lambda se invoca, el archivo queda sin procesar en Bronze/Silver (visible por ausencia de datos en la capa siguiente). Si la Lambda correcta se invoca pero no puede leer el archivo, se registra el error en CloudWatch Logs y el archivo completo no genera salida en la capa siguiente. Tratamiento detallado en SPEC-005. |
-| Lambda | Excepción no controlada durante el procesamiento | Se registra en CloudWatch Logs de la función correspondiente (ingesta o transformación); comportamiento de reintento sujeto a la configuración por defecto de Lambda ante invocaciones asíncronas desde S3. |
+| Archivo | Nombre de archivo no coincide con ninguna regla de EventBridge configurada, archivo corrupto o ilegible | Si ninguna Lambda se invoca, el archivo queda sin procesar en Bronze/Silver (visible por ausencia de datos en la capa siguiente). Si la Lambda correcta se invoca pero no puede leer el archivo, se registra el error en CloudWatch Logs y el archivo completo no genera salida en la capa siguiente. Tratamiento detallado en SPEC-005. |
+| Lambda | Excepción no controlada durante el procesamiento | Se registra en CloudWatch Logs de la función correspondiente (ingesta o transformación); el reintento sigue la política por defecto del target de EventBridge (hasta 185 intentos durante 24 horas, con backoff exponencial), no la de una invocación asíncrona directa desde S3. |
 
 El detalle de implementación de validaciones, logging y manejo de excepciones se profundiza en SPEC-005.
 

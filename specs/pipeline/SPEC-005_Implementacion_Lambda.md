@@ -26,6 +26,21 @@ Lambda de transformación (division):
 
 `normalize_silver` y `validate_and_normalize` comparten un helper interno (`_normalize_core` en `common/schema.py`) para las reglas de campo (fecha, categoría, producto, cantidad, precio, currency, status), evitando duplicar esa lógica entre etapas — ver "Validaciones".
 
+## Contrato del evento de entrada
+
+Ambos handlers reciben `(event, context)` desde Lambda. `event` puede llegar en dos formas
+distintas según el origen de la invocación (ver SPEC-003 "Eventos de S3"):
+
+- **Notificación S3 directa** (mecanismo previo a la migración a EventBridge): `event["Records"][0]["s3"]`, con `["bucket"]["name"]` y `["object"]["key"]`. La `key` viene **URL-encoded** por S3 (espacios como `+`).
+- **EventBridge** (mecanismo actual): `event["detail"]`, con `["bucket"]["name"]` y `["object"]["key"]`. La `key` llega **sin codificar**.
+
+`common/s3_event.py` expone `extract_s3_location(event) -> tuple[str, str]`, el único punto
+de entrada que ambos `handler_base.py` y `transform_handler_base.py` usan para leer
+`(bucket, key)`: detecta cuál de las dos formas recibió (`"Records" in event` vs.
+`"detail" in event`) y aplica el `unquote_plus` solo cuando corresponde. Aceptar ambos
+envelopes en el mismo binario permite desplegar el código antes que el cambio de
+infraestructura, sin que ninguna de las dos formas rompa el handler.
+
 ---
 
 # Organización del código
@@ -172,7 +187,7 @@ class SalesParser(ABC):
 
 # Estrategia para soportar múltiples formatos
 
-- No hay detección de formato en tiempo de ejecución: cada Lambda ya sabe su formato porque está vinculada a un único parser (ver SPEC-003 y SPEC-004 — la S3 Event Notification filtra por división antes de invocar).
+- No hay detección de formato en tiempo de ejecución: cada Lambda ya sabe su formato porque está vinculada a un único parser (ver SPEC-003 y SPEC-004 — la regla de EventBridge filtra por división antes de invocar).
 - Agregar una división nueva en el futuro implica: nuevo parser que implemente `SalesParser`, nuevo `Dockerfile.<division>`, nuevo módulo Terraform de función Lambda — sin tocar el código de las divisiones existentes.
 
 ---
@@ -250,7 +265,7 @@ key S3 del objeto Silver leído (segmento `date=YYYY-MM-DD/`), no de una columna
 
 # Manejo de errores
 
-Jerarquía de excepciones tipadas en `common/errors.py`, siguiendo `ai/skills/python/error_handling_pipeline.md` (adaptado: sin Step Functions, ya que el pipeline no usa una state machine — la invocación es directa desde S3):
+Jerarquía de excepciones tipadas en `common/errors.py`, siguiendo `ai/skills/python/error_handling_pipeline.md` (adaptado: sin Step Functions, ya que el pipeline no usa una state machine — la invocación llega vía EventBridge, no directamente desde S3):
 
 ```python
 class PipelineError(Exception):
@@ -273,7 +288,7 @@ class FileParseError(PipelineError):
 | Nivel | Excepción | Acción del handler |
 |-------|-----------|---------------------|
 | Fila | `RowValidationError` (capturada internamente por `schema.py`, en `normalize_silver` o `validate_and_normalize`) | La fila se escribe en `quarantine/`; el procesamiento continúa con la siguiente fila. No se re-lanza al handler. |
-| Archivo | `FileParseError` | Se lanza desde el parser de la Lambda de ingesta (ej. PDF sin tabla extraíble, CSV con encoding irreconocible). El handler la captura, registra `ERROR` en CloudWatch y termina la invocación sin escribir en Silver. No se reintenta desde el propio código — el comportamiento de reintento de Lambda ante invocaciones S3 asíncronas es el que aplica por defecto. La Lambda de transformación no tiene parser propio (lee Parquet ya homogéneo), por lo que no está sujeta a este tipo de error. |
+| Archivo | `FileParseError` | Se lanza desde el parser de la Lambda de ingesta (ej. PDF sin tabla extraíble, CSV con encoding irreconocible). El handler la captura, registra `ERROR` en CloudWatch y termina la invocación sin escribir en Silver. No se reintenta desde el propio código — el reintento sigue la política por defecto del target de EventBridge (hasta 185 intentos durante 24 horas), no la de una invocación asíncrona directa desde S3. La Lambda de transformación no tiene parser propio (lee Parquet ya homogéneo), por lo que no está sujeta a este tipo de error. |
 | Lambda | Excepción no controlada | Se registra en `ERROR` con el logger estructurado y se re-lanza (nunca catch-and-swallow), consistente con `ai/skills/python/logging_structured.md`. Aplica igual en ambas etapas. |
 
 - **Nunca** se hace catch-and-swallow: toda excepción a nivel archivo o Lambda se registra y se re-lanza.
@@ -301,6 +316,7 @@ Reutiliza el patrón documentado en `ai/skills/python/logging_structured.md` (Js
 
 ```python
 from lambda_ingestion.common.logging_config import get_logger
+from lambda_ingestion.common.s3_event import extract_s3_location
 
 def handler(event, context):
     log = get_logger(
@@ -309,7 +325,8 @@ def handler(event, context):
         document_id="file",
         correlation_id=context.aws_request_id,
     )
-    log.info("Processing started", extra={"bucket": ..., "key": ...})
+    bucket, key = extract_s3_location(event)
+    log.info("Processing started", extra={"bucket": bucket, "key": key})
 ```
 
 Nivel `INFO` para inicio/fin de invocación y conteo de filas válidas/inválidas; `WARNING` por cada fila individual enrutada a cuarentena; `ERROR` únicamente para `FileParseError` y excepciones no controladas.
@@ -333,7 +350,7 @@ Todas se inyectan vía Terraform (`environment.variables` en `aws_lambda_functio
 
 # Fuera de alcance
 
-- Reintentos manuales o backoff propio dentro del handler (se apoya en el comportamiento por defecto de Lambda ante invocaciones S3).
+- Reintentos manuales o backoff propio dentro del handler (se apoya en la política de reintento por defecto del target de EventBridge).
 - Métricas custom (EMF) o tracing distribuido (X-Ray) — no se usa AWS Lambda Powertools en esta demo.
 - Procesamiento por lotes de múltiples archivos en una sola invocación.
 - Extracción de PDFs asistida por IA (mencionada como evolución futura en SPEC-001).

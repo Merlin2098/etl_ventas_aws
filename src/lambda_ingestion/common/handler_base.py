@@ -8,6 +8,7 @@ import boto3
 from .errors import FileParseError, RowValidationError
 from .logging_config import get_logger
 from .parser_base import SalesParser
+from .s3_event import extract_s3_location
 from .s3_writer import write_quarantine, write_silver
 from .schema import normalize_silver, parse_date
 
@@ -32,9 +33,7 @@ def process_event(event: dict, context, parser: SalesParser) -> dict:
         correlation_id=correlation_id,
     )
 
-    record = event["Records"][0]["s3"]
-    source_bucket = record["bucket"]["name"]
-    source_key = record["object"]["key"]
+    source_bucket, source_key = extract_s3_location(event)
     log.info("Processing started", extra={"bucket": source_bucket, "key": source_key})
 
     s3_client = boto3.client("s3")

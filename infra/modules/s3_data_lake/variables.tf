@@ -20,27 +20,6 @@ variable "force_destroy" {
   default     = true
 }
 
-variable "divisions" {
-  description = "RetailCorp divisions, one S3 notification filter per division."
-  type        = list(string)
-}
-
-variable "lambda_function_arns" {
-  description = "Ingestion Lambda function ARN per division (from modules/lambda_ingestion), used to wire up the bronze/ bucket notification."
-  type        = map(string)
-}
-
-variable "transform_lambda_function_arns" {
-  description = "Transform Lambda function ARN per division (from modules/lambda_ingestion), used to wire up the silver/ bucket notification."
-  type        = map(string)
-}
-
-variable "lambda_permission_dependency" {
-  description = "The aws_lambda_permission resources from modules/lambda_ingestion (both ingestion and transform); passed in purely to sequence the notification after the permissions exist."
-  type        = any
-  default     = null
-}
-
 variable "tags" {
   description = "Common tags applied to all resources."
   type        = map(string)

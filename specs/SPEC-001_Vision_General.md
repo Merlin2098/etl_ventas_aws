@@ -63,7 +63,7 @@ Python Generators
  Amazon S3 (Bronze)
 
         │
-S3 Event Notification
+EventBridge
 
         │
         ▼
@@ -74,7 +74,7 @@ S3 Event Notification
  Amazon S3 (Silver)
 
         │
-S3 Event Notification
+EventBridge
 
         │
         ▼
@@ -111,7 +111,7 @@ Capas:
 
 ## AWS Lambda
 
-Procesamiento automático de cada archivo, en dos etapas encadenadas por eventos S3:
+Procesamiento automático de cada archivo, en dos etapas encadenadas por eventos enrutados vía EventBridge:
 
 - **Lambda de ingesta** (Bronze → Silver): **una función por división/formato** (4 en total, una por formato: CSV, Excel, JSON, PDF), cada una empaquetada en su propia imagen Docker con el parser correspondiente.
 - **Lambda de transformación** (Silver → Gold): una función por división (4 en total), sin parser de formato (Silver ya es Parquet homogéneo), comparte imagen Docker con la Lambda de ingesta de su división.
@@ -155,6 +155,7 @@ Recursos aproximados:
 - S3
 - IAM
 - Lambda
+- EventBridge
 - ECR
 - Glue Database
 - Glue Crawler
@@ -231,6 +232,7 @@ Ejemplos:
 - AWS Lambda
 - Amazon ECR
 - Amazon S3
+- Amazon EventBridge
 - AWS Glue
 - Amazon Athena
 
@@ -271,7 +273,7 @@ Estos temas podrán desarrollarse en webinars posteriores.
 Posibles versiones posteriores del laboratorio:
 
 - Particionado por fecha.
-- EventBridge Scheduler para cargas automáticas.
+- EventBridge Scheduler para cargas automáticas (distinto del enrutamiento de eventos `Object Created` ya implementado — ver "Arquitectura propuesta" y SPEC-003; Scheduler dispararía la *generación* periódica de archivos, no el paso entre etapas del pipeline).
 - Step Functions para orquestación.
 - Glue Jobs con Spark.
 - Lake Formation.
