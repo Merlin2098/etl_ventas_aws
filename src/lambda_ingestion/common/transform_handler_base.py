@@ -7,10 +7,10 @@ import os
 import boto3
 import pyarrow.parquet as pq
 
-from src.lambda_ingestion.common.errors import RowValidationError
-from src.lambda_ingestion.common.logging_config import get_logger
-from src.lambda_ingestion.common.s3_writer import write_gold, write_quarantine
-from src.lambda_ingestion.common.schema import validate_and_normalize
+from .errors import RowValidationError
+from .logging_config import get_logger
+from .s3_writer import write_gold, write_quarantine
+from .schema import validate_and_normalize
 
 
 def _partition_date_from_key(key: str) -> datetime.date:
@@ -63,8 +63,12 @@ def process_transform_event(event: dict, context) -> dict:
     errors: dict[datetime.date, list[dict]] = {}
     for silver_row in silver_rows:
         try:
+            # `date` is a Hive partition column (silver/store=<division>/date=<fecha>/...),
+            # not a column inside the Silver Parquet file, so it's injected back from the
+            # partition key here (mirrors scripts/testing/run_local_ingestion.py).
+            row_with_date = {**silver_row, "date": partition_date}
             gold_row, date = validate_and_normalize(
-                silver_row,
+                row_with_date,
                 division=division,
                 stage="validate",
                 correlation_id=correlation_id,

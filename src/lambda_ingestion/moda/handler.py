@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from src.lambda_ingestion.common.handler_base import process_event
-from src.lambda_ingestion.moda.parser import JsonSalesParser
+from ..common.handler_base import process_event
+from .parser import JsonSalesParser
 
 _parser = JsonSalesParser()
 

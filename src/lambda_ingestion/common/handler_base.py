@@ -5,11 +5,11 @@ import os
 
 import boto3
 
-from src.lambda_ingestion.common.errors import FileParseError, RowValidationError
-from src.lambda_ingestion.common.logging_config import get_logger
-from src.lambda_ingestion.common.parser_base import SalesParser
-from src.lambda_ingestion.common.s3_writer import write_quarantine, write_silver
-from src.lambda_ingestion.common.schema import normalize_silver, parse_date
+from .errors import FileParseError, RowValidationError
+from .logging_config import get_logger
+from .parser_base import SalesParser
+from .s3_writer import write_quarantine, write_silver
+from .schema import normalize_silver, parse_date
 
 
 def process_event(event: dict, context, parser: SalesParser) -> dict:

@@ -5,8 +5,8 @@ from typing import Iterator
 
 from openpyxl import load_workbook
 
-from src.lambda_ingestion.common.errors import FileParseError
-from src.lambda_ingestion.common.parser_base import SalesParser
+from ..common.errors import FileParseError
+from ..common.parser_base import SalesParser
 
 
 class ExcelSalesParser(SalesParser):

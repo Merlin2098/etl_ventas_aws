@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from typing import Iterator
 
-from src.lambda_ingestion.common.errors import FileParseError
-from src.lambda_ingestion.common.parser_base import SalesParser
+from ..common.errors import FileParseError
+from ..common.parser_base import SalesParser
 
 
 class JsonSalesParser(SalesParser):

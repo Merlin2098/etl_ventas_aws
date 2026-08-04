@@ -8,9 +8,13 @@ import boto3
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from src.lambda_ingestion.common.schema import GOLD_SCHEMA, SILVER_SCHEMA
+from .schema import GOLD_SCHEMA, SILVER_SCHEMA
 
 
+# debt: prefixes hardcoded here instead of read from SILVER_PREFIX/GOLD_PREFIX/
+# QUARANTINE_PREFIX (already injected by Terraform, see modules/lambda_ingestion),
+# upgrade if a non-dev environment needs a different data lake layout without a
+# Docker image rebuild.
 def _silver_prefix(division: str, date: datetime.date) -> str:
     return f"silver/store={division}/date={date.isoformat()}/"
 

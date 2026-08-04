@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from src.lambda_ingestion.common.handler_base import process_event
-from src.lambda_ingestion.electronica.parser import CsvSalesParser
+from ..common.handler_base import process_event
+from .parser import CsvSalesParser
 
 _parser = CsvSalesParser()
 

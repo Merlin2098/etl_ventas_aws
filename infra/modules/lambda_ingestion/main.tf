@@ -25,7 +25,7 @@ resource "aws_cloudwatch_log_group" "division" {
   tags              = var.tags
 }
 
-# Least-privilege per division: read bronze/<division>/, write gold/ + quarantine/
+# Least-privilege per division: read bronze/<division>/, write silver/ + quarantine/
 # (both are division-partitioned so a single statement per division covers only
 # its own partition), and logs scoped to its own log group.
 data "aws_iam_policy_document" "division" {
@@ -38,25 +38,25 @@ data "aws_iam_policy_document" "division" {
   }
 
   statement {
-    sid = "WriteOwnGoldAndQuarantinePartitions"
+    sid = "WriteOwnSilverAndQuarantinePartitions"
     actions = [
       "s3:PutObject",
       "s3:DeleteObject",
     ]
     resources = [
-      "${var.data_bucket_arn}/${var.gold_prefix}store=${each.key}/*",
+      "${var.data_bucket_arn}/${var.silver_prefix}store=${each.key}/*",
       "${var.data_bucket_arn}/${var.quarantine_prefix}store=${each.key}/*",
     ]
   }
 
   statement {
-    sid       = "ListOwnGoldPartitionForDeleteThenWrite"
+    sid       = "ListOwnSilverPartitionForDeleteThenWrite"
     actions   = ["s3:ListBucket"]
     resources = [var.data_bucket_arn]
     condition {
       test     = "StringLike"
       variable = "s3:prefix"
-      values   = ["${var.gold_prefix}store=${each.key}/*"]
+      values   = ["${var.silver_prefix}store=${each.key}/*"]
     }
   }
 
@@ -93,7 +93,7 @@ resource "aws_lambda_function" "division" {
     variables = {
       DIVISION          = each.key
       DATA_BUCKET       = var.data_bucket_name
-      GOLD_PREFIX       = var.gold_prefix
+      SILVER_PREFIX     = var.silver_prefix
       QUARANTINE_PREFIX = var.quarantine_prefix
       LOG_LEVEL         = "INFO"
     }

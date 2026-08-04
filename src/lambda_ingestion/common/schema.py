@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 
 import pyarrow as pa
 
-from src.lambda_ingestion.common.errors import RowValidationError
+from .errors import RowValidationError
 
 # Gold Parquet columns only. `store` and `date` are Hive partition columns
 # (gold/store=<division>/date=<fecha>/) and are intentionally excluded here

@@ -1,42 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Builds and pushes the 4 division Lambda images from the single
-# docker/Dockerfile (SPEC-005 / SPEC-004 "Flujo de despliegue"). Each image
-# serves both Lambda functions of its division (ingestion + transform,
-# SPEC-004/SPEC-005) — the transform function overrides the entrypoint via
-# Terraform's image_config.command, no separate build needed. Requires the
-# ECR repositories to already exist (first `terraform apply`, SPEC-004).
+# Publishes the 4 division Lambda images built by scripts/docker_build.sh to
+# their ECR repositories (SPEC-005 / SPEC-004 "Flujo de despliegue"). Requires
+# the ECR repositories to already exist (first `terraform apply`, SPEC-004)
+# and AWS credentials valid for `aws ecr get-login-password`.
 
 DIVISIONS=(electronica supermercado moda marketplace)
 IMAGE_TAG=$(git rev-parse --short HEAD)
+ECR_REGISTRY_PLACEHOLDER="local-build"
 REGION="${AWS_REGION:-us-east-1}"
 
-TMP_DOCKERFILE=$(mktemp)
-trap 'rm -f "$TMP_DOCKERFILE"' EXIT
+for DIVISION in "${DIVISIONS[@]}"; do
+  LOCAL_IMAGE="${ECR_REGISTRY_PLACEHOLDER}/${DIVISION}:${IMAGE_TAG}"
+  if ! docker image inspect "$LOCAL_IMAGE" > /dev/null 2>&1; then
+    echo "Missing local image ${LOCAL_IMAGE} — run scripts/docker_build.sh first." >&2
+    exit 1
+  fi
+done
 
 for DIVISION in "${DIVISIONS[@]}"; do
   REPO_URL=$(terraform -chdir=infra output -json ecr_repository_urls | python3 -c "import json,sys; print(json.load(sys.stdin)['$DIVISION'])")
+  LOCAL_IMAGE="${ECR_REGISTRY_PLACEHOLDER}/${DIVISION}:${IMAGE_TAG}"
+  REMOTE_IMAGE="${REPO_URL}:${IMAGE_TAG}"
 
-  # CMD in Lambda images must use exec form, which Docker does not
-  # variable-substitute at build time — resolve the __DIVISION__ placeholder
-  # here before building (see docker/Dockerfile header comment).
-  sed "s/__DIVISION__/${DIVISION}/g" docker/Dockerfile > "$TMP_DOCKERFILE"
-
-  echo "Building ${DIVISION} -> ${REPO_URL}:${IMAGE_TAG}"
-  docker build \
-    --platform linux/amd64 \
-    --provenance=false \
-    --build-arg DIVISION="${DIVISION}" \
-    --file "$TMP_DOCKERFILE" \
-    -t "${REPO_URL}:${IMAGE_TAG}" \
-    .
+  docker tag "$LOCAL_IMAGE" "$REMOTE_IMAGE"
 
   aws ecr get-login-password --region "$REGION" | \
     docker login --username AWS --password-stdin "$REPO_URL"
 
-  docker push "${REPO_URL}:${IMAGE_TAG}"
-  echo "Pushed ${REPO_URL}:${IMAGE_TAG}"
+  echo "Pushing ${DIVISION} -> ${REMOTE_IMAGE}"
+  docker push "$REMOTE_IMAGE"
+  echo "Pushed ${REMOTE_IMAGE}"
 done
 
 echo ""
