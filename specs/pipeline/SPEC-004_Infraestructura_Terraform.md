@@ -85,12 +85,13 @@ Cada módulo expone `log_group_name`, `log_group_arn` y el/los `resource_arn` re
 
 - Un `aws_glue_catalog_database` para el proyecto.
 - Un `aws_glue_crawler` apuntando a `gold/`, programado o de ejecución manual (ver SPEC-006 para el detalle de descubrimiento de esquema).
-- Rol IAM del Crawler con permisos de lectura sobre `gold/` y de escritura sobre el Data Catalog.
+- Rol IAM del Crawler con permisos de lectura sobre `gold/` y de escritura sobre el Data Catalog. Incluye explícitamente `glue:BatchGetPartition` (además de `glue:GetPartitions`, `glue:BatchCreatePartition`, `glue:BatchUpdatePartition`): el Crawler la invoca para reconciliar particiones ya catalogadas contra las nuevas que descubre en cada corrida, y AWS la deniega con `AccessDeniedException` si falta — no es cubierta implícitamente por las otras acciones de partición (incidente detectado en la validación E2E del 2026-08-04, ver SPEC-006 "Validación del despliegue").
 
 ## `modules/athena`
 
 - Un `aws_athena_workgroup` dedicado al proyecto.
 - Ubicación de resultados de consulta: prefijo `athena-results/` dentro del mismo bucket de datos (no un bucket adicional), consistente con el default `use_single_bucket = true` de `modules/s3_data_lake` — un bucket menos que administrar y destruir, sin implicaciones funcionales distintas para esta demo.
+- `enforce_workgroup_configuration = true`: toda ejecución en este workgroup usa la ubicación de resultados centralizada de arriba, sin excepción. Esto incluye `CREATE TABLE AS SELECT` (CTAS): una query con cláusula `external_location` propia falla con `InvalidRequestException` en vez de escribir donde se le indique — hay que omitir esa cláusula y dejar que Athena coloque la tabla nueva bajo `athena-results/tables/` (ver `SPEC-006_Analitica_Validacion_E2E.md` y `docs/consideraciones/athena_queries.md` para el ejemplo verificado).
 
 ---
 

@@ -47,6 +47,7 @@ data "aws_iam_policy_document" "crawler" {
       "glue:CreateTable",
       "glue:UpdateTable",
       "glue:GetPartitions",
+      "glue:BatchGetPartition",
       "glue:BatchCreatePartition",
       "glue:BatchUpdatePartition",
     ]

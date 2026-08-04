@@ -21,8 +21,8 @@ Definir la capa analítica del laboratorio (Glue Data Catalog + Athena) y los cr
 ## Tablas
 
 - No se declara `aws_glue_catalog_table` explícita en Terraform. El esquema se descubre mediante **Glue Crawler**, consistente con SPEC-004 (`glue_crawler_schedule` vacío = ejecución manual, sin scheduling automático).
-- El Crawler apunta a `gold/` y registra una única tabla (ej. `sales`), con particiones `store` y `date` inferidas de la estructura de carpetas definida en SPEC-003 (`gold/store=<division>/date=<fecha>/`).
-- El esquema de columnas resultante debe coincidir con el esquema Gold de SPEC-002 (`sale_id`, `date`, `store`, `category`, `product`, `quantity`, `price`, `total`); si el Crawler infiere tipos distintos a los esperados (ej. `price` como `string` en vez de `decimal`), se considera un defecto a corregir en el parser de origen, no en el Crawler.
+- El Crawler apunta a `gold/` y registra una única tabla, con particiones `store` y `date` inferidas de la estructura de carpetas definida en SPEC-003 (`gold/store=<division>/date=<fecha>/`). Sin `table_prefix` configurado en `aws_glue_crawler`, el nombre de la tabla lo deriva el Crawler del último segmento del path S3 (`gold/` → tabla **`gold`**, confirmado en despliegue real el 2026-08-04); las queries de esta spec usan ese nombre, no `sales`.
+- El esquema de columnas resultante debe coincidir con el esquema Gold de SPEC-002 (`sale_id`, `date`, `store`, `category`, `product`, `quantity`, `price`, `total`); si el Crawler infiere tipos distintos a los esperados (ej. `price` como `string` en vez de `decimal`), se considera un defecto a corregir en el parser de origen, no en el Crawler. **Excepción conocida:** la partición `date` se cataloga como `varchar`, no como `date` tipado — comportamiento por defecto del Crawler al inferir particiones Hive desde el path (`date=YYYY-MM-DD/`), no un defecto del parser. Las queries que filtran por fecha deben comparar contra un string literal (`date = '2026-08-04'`), no `DATE '2026-08-04'` (falla con `TYPE_MISMATCH: Cannot apply operator: varchar = date`), ver "Consultas SQL de ejemplo".
 
 ## Descubrimiento de datos
 
@@ -43,6 +43,7 @@ No se usa `MSCK REPAIR TABLE` ni `ALTER TABLE ADD PARTITION` manual: **toda actu
 
 - Workgroup dedicado (`modules/athena`, ver SPEC-004), con ubicación de resultados propia en S3.
 - Todas las consultas se ejecutan contra la tabla única de `gold/` descubierta por el Crawler.
+- `enforce_workgroup_configuration = true` (ver SPEC-004) fuerza toda ejecución, incluido `CREATE TABLE AS SELECT`, a la ubicación de resultados del workgroup: un CTAS con `external_location` propio falla con `InvalidRequestException`. Ver `docs/consideraciones/athena_queries.md` para el patrón correcto (CTAS sin esa cláusula) y más ejemplos de queries que van más allá del `SELECT` simple (self-joins, window functions).
 
 ## Consultas SQL de ejemplo
 
@@ -51,39 +52,47 @@ Alineadas con las "Consultas de negocio" listadas en `SPEC-001_Vision_General.md
 ```sql
 -- Ventas por categoría
 SELECT category, SUM(total) AS total_sales
-FROM sales
+FROM gold
 GROUP BY category
 ORDER BY total_sales DESC;
 
 -- Top 10 productos por ingresos
 SELECT product, SUM(total) AS revenue
-FROM sales
+FROM gold
 GROUP BY product
 ORDER BY revenue DESC
 LIMIT 10;
 
 -- Ventas por tienda (división)
 SELECT store, SUM(total) AS total_sales, COUNT(*) AS num_sales
-FROM sales
+FROM gold
 GROUP BY store
 ORDER BY total_sales DESC;
 
 -- Ticket promedio por división
 SELECT store, AVG(total) AS avg_ticket
-FROM sales
+FROM gold
 GROUP BY store;
 
 -- Ventas por día
 SELECT date, SUM(total) AS total_sales
-FROM sales
+FROM gold
 GROUP BY date
 ORDER BY date;
 
 -- Productos con mayores ingresos por categoría
 SELECT category, product, SUM(total) AS revenue
-FROM sales
+FROM gold
 GROUP BY category, product
 ORDER BY category, revenue DESC;
+
+-- Filtrar por fecha: `date` se cataloga como varchar (ver "Tablas"), comparar
+-- contra string literal, nunca DATE 'YYYY-MM-DD' (TYPE_MISMATCH).
+SELECT store, date, COUNT(*) AS num_sales
+FROM gold
+WHERE date = '2026-08-04'
+GROUP BY store, date
+ORDER BY store;
 ```
 
 ## Preguntas de negocio y resultados esperados
@@ -109,7 +118,7 @@ El laboratorio se considera funcionando correctamente cuando, tras ejecutar los 
 3. Existen archivos Parquet en `silver/store=<division>/date=<fecha>/` para las 4 divisiones, lo que a su vez disparó, vía EventBridge, la Lambda de transformación correspondiente.
 4. Existen archivos Parquet en `gold/store=<division>/date=<fecha>/` para las 4 divisiones.
 5. Existen archivos de error en `quarantine/store=<division>/date=<fecha>/` para las filas inválidas generadas intencionalmente (SPEC-002).
-6. El Glue Crawler, tras ejecutarse, registra la tabla `sales` con las particiones de la fecha procesada.
+6. El Glue Crawler, tras ejecutarse, registra la tabla `gold` con las particiones de la fecha procesada (ver "Tablas" para el nombre real).
 7. Las queries de la sección anterior se ejecutan sin error en Athena y devuelven resultados consistentes con los criterios de la tabla "Preguntas de negocio".
 
 ## Validación funcional
@@ -125,6 +134,7 @@ El laboratorio se considera funcionando correctamente cuando, tras ejecutar los 
 - Las 8 reglas de EventBridge (4 de ingesta + 4 de transformación) existen, están `ENABLED`, y cada una tiene exactamente un target apuntando a la Lambda correcta. Cada Lambda tiene un `aws_lambda_permission` con `principal = events.amazonaws.com` scopeado al ARN de su regla (ver SPEC-004) — esta verificación es la que faltaba y permitió que INCIDENTE-001 pasara desapercibido hasta la corrida E2E.
 - El bucket de datos tiene las notificaciones a EventBridge habilitadas (`EventBridgeConfiguration` no nulo).
 - Los outputs de Terraform (`lambda_function_arns`, `eventbridge_rule_names`, `glue_database_name`, `athena_workgroup_name`, etc., ver SPEC-004) resuelven a recursos existentes.
+- El rol IAM del Glue Crawler incluye `glue:BatchGetPartition` (ver SPEC-004 `modules/glue_catalog`): sin este permiso, `start-crawler` termina en `Status: FAILED` con `AccessDeniedException` al reconciliar particiones, y ninguna tabla queda disponible para Athena — detectado por primera vez en la validación E2E del 2026-08-04.
 
 ## Validación del procesamiento
 
@@ -144,7 +154,7 @@ Para dar por validado el laboratorio durante el webinar, se recopila:
 
 1. Resultados (capturas o export) de las queries Athena de la sección anterior.
 2. Logs de CloudWatch de las 4 Lambdas para la invocación de prueba.
-3. Conteo de filas Gold vs Bronze por división (manual o vía query auxiliar `SELECT store, COUNT(*) FROM sales WHERE date = '<fecha>' GROUP BY store`, comparado contra el conteo de filas del archivo de origen).
+3. Conteo de filas Gold vs Bronze por división (manual o vía query auxiliar `SELECT store, COUNT(*) FROM gold WHERE date = '<fecha>' GROUP BY store`, comparado contra el conteo de filas del archivo de origen).
 4. Listado de objetos en `quarantine/store=<division>/date=<fecha>/` con su contenido, confirmando que los errores intencionales fueron capturados.
 5. Resultado en verde de `tests/aws/` (ver "Tests automatizados de infraestructura").
 
