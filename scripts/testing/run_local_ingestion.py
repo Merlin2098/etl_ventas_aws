@@ -48,11 +48,12 @@ PARSERS: dict[str, type[SalesParser]] = {
 
 
 def _default_bronze_path(division: str, date: datetime.date, data_dir: Path) -> Path:
-    """Resolves data/<division>_<date>.<ext>, matching generate_sales.py's own
-    output naming, so `--division all` can locate each Bronze file without the
+    """Resolves data/date=<date>/<division>_<date>.<ext>, matching generate_sales.py's
+    own output naming, so `--division all` can locate each Bronze file without the
     caller having to pass --file explicitly."""
     ext = DIVISIONS[division].ext
-    return data_dir / f"{division}_{date.isoformat()}.{ext}"
+    date_str = date.isoformat()
+    return data_dir / f"date={date_str}" / f"{division}_{date_str}.{ext}"
 
 
 def _default(value: object) -> object:

@@ -83,5 +83,39 @@ def test_generate_sales_cli_writes_four_files_without_upload(tmp_path: Path):
         "moda_2026-08-01.json",
         "marketplace_2026-08-01.pdf",
     }
-    actual_files = {p.name for p in tmp_path.iterdir()}
+    partition_dir = tmp_path / "date=2026-08-01"
+    actual_files = {p.name for p in partition_dir.iterdir()}
     assert expected_files == actual_files
+
+
+def test_generate_sales_cli_week_writes_seven_partition_folders(tmp_path: Path):
+    import subprocess
+    import sys
+
+    repo_root = Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(repo_root / "scripts" / "data_generator" / "generate_sales.py"),
+            "--division",
+            "electronica",
+            "--date",
+            "2026-08-07",
+            "--week",
+            "--rows",
+            "5",
+            "--no-upload",
+            "--seed",
+            "1",
+            "--output-dir",
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=repo_root,
+    )
+    assert result.returncode == 0, result.stderr
+
+    expected_partitions = {f"date=2026-08-0{d}" for d in range(1, 8)}
+    actual_partitions = {p.name for p in tmp_path.iterdir()}
+    assert expected_partitions == actual_partitions

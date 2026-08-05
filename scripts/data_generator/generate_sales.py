@@ -39,9 +39,10 @@ def generate_division(
         row = maybe_corrupt(row, config.ext, error_rate)
         records.append(row)
 
-    output_dir.mkdir(parents=True, exist_ok=True)
     date_str = date.isoformat()
-    output_path = output_dir / f"{division}_{date_str}.{config.ext}"
+    partition_dir = output_dir / f"date={date_str}"
+    partition_dir.mkdir(parents=True, exist_ok=True)
+    output_path = partition_dir / f"{division}_{date_str}.{config.ext}"
     config.writer(records, output_path)
 
     print(f"[{division}] generated {rows} rows -> {output_path}")
@@ -65,8 +66,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--date",
-        default=datetime.date.today().isoformat(),
-        help="Business date (YYYY-MM-DD). Defaults to today.",
+        default=None,
+        help="Business date (YYYY-MM-DD). Defaults to today. With --week, this "
+        "is the last day of the 7-day window instead of the only day.",
+    )
+    parser.add_argument(
+        "--week",
+        action="store_true",
+        help="Generate 7 consecutive days ending on --date (default: today), "
+        "one partition folder per day, to simulate a week of history in S3.",
     )
     parser.add_argument(
         "--rows",
@@ -97,22 +105,38 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def week_ending(last_day: datetime.date) -> list[datetime.date]:
+    """7 consecutive dates, oldest first, ending on `last_day` (inclusive)."""
+    return [last_day - datetime.timedelta(days=offset) for offset in range(6, -1, -1)]
+
+
 def main() -> None:
     args = parse_args()
-    date = datetime.date.fromisoformat(args.date)
     output_dir = Path(args.output_dir)
+    anchor_date = datetime.date.fromisoformat(args.date or datetime.date.today().isoformat())
+
+    dates = week_ending(anchor_date) if args.week else [anchor_date]
 
     divisions = DIVISION_ORDER if args.division == "all" else [args.division]
-    for division in divisions:
-        generate_division(
-            division=division,
-            date=date,
-            rows=args.rows,
-            error_rate=args.error_rate,
-            output_dir=output_dir,
-            upload=args.upload,
-            seed=args.seed,
-        )
+    for date in dates:
+        for division in divisions:
+            # A single base seed reused verbatim across every (date, division) would
+            # make every day's file identical. Derive a per-run seed from it instead,
+            # so --seed still gives reproducible-but-distinct output across a range.
+            seed = (
+                None
+                if args.seed is None
+                else args.seed + date.toordinal() + hash(division) % 1000
+            )
+            generate_division(
+                division=division,
+                date=date,
+                rows=args.rows,
+                error_rate=args.error_rate,
+                output_dir=output_dir,
+                upload=args.upload,
+                seed=seed,
+            )
 
 
 if __name__ == "__main__":
