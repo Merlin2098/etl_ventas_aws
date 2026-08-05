@@ -32,6 +32,38 @@ MONTHS_ES = {
 }
 
 
+# Field name -> Spanish header label, covering the 8 base fields (SPEC-002)
+# plus every division-specific field (SPEC-009 §2). Used by pdf_writer to
+# render a human-readable header regardless of which fields a division emits.
+FIELD_LABELS_ES: dict[str, str] = {
+    "sale_id": "ID Venta",
+    "date": "Fecha",
+    "category": "Categoría",
+    "product": "Producto",
+    "quantity": "Cantidad",
+    "price": "Precio",
+    "currency": "Moneda",
+    "status": "Estado",
+    "serial_number": "N° Serie",
+    "warranty_months": "Garantía (meses)",
+    "manufacturer": "Fabricante",
+    "model": "Modelo",
+    "cashier": "Cajero",
+    "loyalty_points": "Puntos Lealtad",
+    "promotion_applied": "Promoción Aplicada",
+    "register_number": "N° Caja",
+    "size": "Talla",
+    "color": "Color",
+    "collection": "Colección",
+    "season": "Temporada",
+    "return_reason": "Motivo Devolución",
+    "seller_id": "ID Vendedor",
+    "marketplace_fee": "Comisión Marketplace",
+    "commission_pct": "% Comisión",
+    "shipping_provider": "Transportista",
+}
+
+
 def format_date_free_text(date) -> str:
     """Free-text date '<día> de <mes> de <año>' per SPEC-007 / SPEC-005 (Marketplace)."""
     return f"{date.day} de {MONTHS_ES[date.month]} de {date.year}"
@@ -47,6 +79,32 @@ def build_faker(seed: int | None) -> Faker:
 
 def _round_price(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _generate_extra_fields(division: str, config, status: str) -> dict:
+    """Division-specific fields (SPEC-009 §2). Closed-catalog fields (ej.
+    manufacturer, size) come from `config.extra_fields` (declared in
+    detalle-data.yaml); free-form identifiers (ej. serial_number, seller_id)
+    are generated directly here — see config.FREE_FORM_FIELDS for which
+    fields fall in which bucket per division."""
+    extra: dict = {name: random.choice(values) for name, values in config.extra_fields.items()}
+
+    if division == "electronica":
+        extra["serial_number"] = f"SN-{uuid.uuid4().hex[:10].upper()}"
+        extra["model"] = f"MDL-{random.randint(1000, 9999)}"
+    elif division == "supermercado":
+        extra["register_number"] = f"CAJA-{random.randint(1, 8):02d}"
+    elif division == "moda":
+        # return_reason only applies to a fraction of RETURNED/EXCHANGED rows,
+        # not to every row of the division (SPEC-008 #14).
+        if status in ("RETURNED", "EXCHANGED") and random.random() < 0.6:
+            extra["return_reason"] = random.choice(config.extra_fields["return_reason"])
+        else:
+            extra.pop("return_reason", None)
+    elif division == "marketplace":
+        extra["seller_id"] = f"SELLER-{random.randint(1000, 9999)}"
+
+    return extra
 
 
 def generate_row(division: str, date, fake: Faker, config) -> SaleRecord:
@@ -65,6 +123,7 @@ def generate_row(division: str, date, fake: Faker, config) -> SaleRecord:
     )
     category_written = random.choice(category.category_aliases)
     product_written = random.choice(category.product_aliases.get(product, [product]))
+    status = random.choice(config.statuses)
     return SaleRecord(
         sale_id=str(uuid.uuid4()),
         date=date,
@@ -73,7 +132,8 @@ def generate_row(division: str, date, fake: Faker, config) -> SaleRecord:
         quantity=quantity,
         price=price,
         currency=random.choice(config.currencies),
-        status=random.choice(config.statuses),
+        status=status,
+        **_generate_extra_fields(division, config, status),
     )
 
 

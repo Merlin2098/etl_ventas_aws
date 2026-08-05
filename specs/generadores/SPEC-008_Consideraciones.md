@@ -45,6 +45,23 @@ El objetivo es obligar al pipeline a realizar transformaciones reales durante el
 
 Cada categoría posee columnas exclusivas.
 
+> **Estado: implementado** (SPEC-009 §2, ver `src/generators/engine/schema.py`
+> `SaleRecord` y `src/lambda_ingestion/common/schema.py` `GOLD_SCHEMA`), con
+> ligeras diferencias de nombre/alcance respecto a la propuesta original de
+> esta sección, resueltas al implementar:
+> - Supermercado: `cash_register` se implementó como `register_number`.
+> - Marketplace: `coupon_code` no se implementó (queda para una fase de
+>   "campos opcionales"/promociones futura, punto 2/13 de este mismo spec).
+> - Moda: `return_window_days` se implementó como `return_reason` (motivo de
+>   devolución en vez de ventana de días), consistente con la sección "14.
+>   Devoluciones" más abajo en este mismo documento, y solo se puebla para una
+>   fracción de filas `RETURNED`/`EXCHANGED` — no es una columna siempre
+>   presente en Moda, a diferencia de las otras 3 columnas de esta división.
+>
+> Todos los campos se implementaron como nullable, sin regla de validación de
+> negocio propia (esa parte — "Calidad de datos", punto 3 de este documento —
+> queda fuera de esta fase, ver SPEC-009 puntos 3/6).
+
 ### Electrónica
 
 | Campo           |

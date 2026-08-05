@@ -11,6 +11,12 @@
 #   product_aliases: variantes de escritura por producto (SPEC-008 #9)
 # currencies: monedas posibles de la división (SPEC-008 #5), la primera es la más frecuente
 # statuses: catálogo de estados propio del sistema origen (SPEC-008 #10)
+# extra_fields: catálogos cerrados para los campos específicos de división
+#   (SPEC-009 §2). Solo lista los campos cuyo valor sale de un catálogo fijo
+#   (ej. manufacturer); los campos de identificador libre (serial_number,
+#   seller_id, register_number) se generan en engine/common.py y no viven
+#   aquí. Cada división declara únicamente sus propios campos — el resto
+#   queda en null (ver GOLD_SCHEMA/SILVER_SCHEMA en lambda_ingestion).
 
 divisions:
   electronica:
@@ -19,6 +25,9 @@ divisions:
     ext: csv
     currencies: [PEN, PEN, PEN, USD]
     statuses: [PENDING, INVOICED, INVOICED, INVOICED]
+    extra_fields:
+      manufacturer: [Samsung, LG, Sony, HP, Lenovo]
+      warranty_months: [6, 12, 24, 36]
     categories:
       Audio:
         products: ["Audífonos Bluetooth", "Parlante Portátil", "Barra de Sonido"]
@@ -44,6 +53,10 @@ divisions:
     ext: xlsx
     currencies: [PEN]
     statuses: [COMPLETED]
+    extra_fields:
+      cashier: ["María Torres", "Luis Rojas", "Ana Quispe", "Carlos Mamani"]
+      loyalty_points: [0, 10, 25, 50, 100]
+      promotion_applied: [true, false, false, false]
     categories:
       Almacén:
         products: ["Arroz 1kg", "Aceite de Girasol", "Fideos Largos"]
@@ -67,6 +80,13 @@ divisions:
     ext: json
     currencies: [PEN, USD]
     statuses: [DELIVERED, DELIVERED, RETURNED, EXCHANGED]
+    extra_fields:
+      size: ["XS", "S", "M", "L", "XL"]
+      color: [Negro, Blanco, Azul, Rojo, Beige]
+      collection: ["Primavera 2026", "Verano 2026", "Invierno 2025"]
+      season: [Primavera, Verano, Otoño, Invierno]
+      # return_reason solo se puebla para filas RETURNED/EXCHANGED (ver generate_row).
+      return_reason: ["Wrong Size", "Damaged", "Changed Mind"]
     categories:
       Calzado:
         products: ["Zapatillas Urbanas", "Botas de Cuero", "Sandalias"]
@@ -92,6 +112,10 @@ divisions:
     ext: pdf
     currencies: [USD, USD, PEN, EUR]
     statuses: [PAID, SHIPPED, DELIVERED]
+    extra_fields:
+      shipping_provider: [DHL, FedEx, Olva Courier, Shalom]
+      marketplace_fee: [1.50, 2.00, 2.50, 3.00]
+      commission_pct: [5.0, 8.0, 10.0, 12.5]
     categories:
       Deportes:
         products: ["Balón de Fútbol", "Bicicleta Urbana", "Mancuernas 5kg"]

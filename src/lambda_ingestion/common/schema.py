@@ -8,7 +8,36 @@ import pyarrow as pa
 
 from .errors import RowValidationError
 
-# Gold Parquet columns only. `store` and `date` are Hive partition columns
+# Division-specific fields (SPEC-009 §2). Always nullable: a row only
+# populates its own division's fields, every other row carries null here (one
+# flat Gold/Silver table for all 4 divisions, no per-division table/JSON blob).
+# No validation rule is attached to these in this phase (see _normalize_core) —
+# data-quality rules for them are out of scope for now.
+EXTRA_FIELDS = [
+    # Electrónica
+    pa.field("serial_number", pa.string(), nullable=True),
+    pa.field("warranty_months", pa.int32(), nullable=True),
+    pa.field("manufacturer", pa.string(), nullable=True),
+    pa.field("model", pa.string(), nullable=True),
+    # Supermercado
+    pa.field("cashier", pa.string(), nullable=True),
+    pa.field("loyalty_points", pa.int32(), nullable=True),
+    pa.field("promotion_applied", pa.bool_(), nullable=True),
+    pa.field("register_number", pa.string(), nullable=True),
+    # Moda
+    pa.field("size", pa.string(), nullable=True),
+    pa.field("color", pa.string(), nullable=True),
+    pa.field("collection", pa.string(), nullable=True),
+    pa.field("season", pa.string(), nullable=True),
+    pa.field("return_reason", pa.string(), nullable=True),
+    # Marketplace
+    pa.field("seller_id", pa.string(), nullable=True),
+    pa.field("marketplace_fee", pa.decimal128(10, 2), nullable=True),
+    pa.field("commission_pct", pa.decimal128(5, 2), nullable=True),
+    pa.field("shipping_provider", pa.string(), nullable=True),
+]
+
+# Gold Parquet columns. `store` and `date` are Hive partition columns
 # (gold/store=<division>/date=<fecha>/) and are intentionally excluded here
 # to avoid duplicate columns when the Glue Crawler catalogs the table.
 GOLD_SCHEMA = pa.schema(
@@ -21,6 +50,7 @@ GOLD_SCHEMA = pa.schema(
         pa.field("total", pa.decimal128(10, 2), nullable=False),
         pa.field("currency", pa.string(), nullable=False),
         pa.field("status", pa.string(), nullable=False),
+        *EXTRA_FIELDS,
     ]
 )
 
@@ -36,8 +66,70 @@ SILVER_SCHEMA = pa.schema(
         pa.field("price", pa.decimal128(10, 2), nullable=False),
         pa.field("currency", pa.string(), nullable=False),
         pa.field("status", pa.string(), nullable=False),
+        *EXTRA_FIELDS,
     ]
 )
+
+# Field name -> caster applied when present in the raw row (SPEC-009 §2).
+# No RowValidationError on failure: an unparseable extra field is dropped to
+# null rather than sending the whole row to quarantine — these fields carry
+# no business rule in this phase, unlike quantity/price/date.
+_EXTRA_INT_FIELDS = ("warranty_months", "loyalty_points")
+_EXTRA_DECIMAL_FIELDS = ("marketplace_fee", "commission_pct")
+_EXTRA_BOOL_FIELDS = ("promotion_applied",)
+_EXTRA_STRING_FIELDS = (
+    "serial_number",
+    "manufacturer",
+    "model",
+    "cashier",
+    "register_number",
+    "size",
+    "color",
+    "collection",
+    "season",
+    "return_reason",
+    "seller_id",
+    "shipping_provider",
+)
+
+
+def _cast_extra_int(value: object) -> int | None:
+    try:
+        return int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+
+
+def _cast_extra_decimal(value: object) -> Decimal | None:
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+
+def _cast_extra_bool(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.strip().lower() in ("true", "false"):
+        return value.strip().lower() == "true"
+    return None
+
+
+def _extract_extra_fields(raw_row: dict) -> dict:
+    """Division-specific fields (SPEC-009 §2), copied through as-is if present
+    and well-formed, null otherwise — no RowValidationError, these fields have
+    no business rule in this phase (out of scope, see SPEC-009 §3/§6)."""
+    extra: dict = {}
+    for field in _EXTRA_STRING_FIELDS:
+        value = raw_row.get(field)
+        extra[field] = value if isinstance(value, str) and value.strip() else None
+    for field in _EXTRA_INT_FIELDS:
+        extra[field] = _cast_extra_int(raw_row.get(field))
+    for field in _EXTRA_DECIMAL_FIELDS:
+        extra[field] = _cast_extra_decimal(raw_row.get(field))
+    for field in _EXTRA_BOOL_FIELDS:
+        extra[field] = _cast_extra_bool(raw_row.get(field))
+    return extra
 
 # Applied when the source row omits currency/status or sends an unrecognized
 # value — kept as passthrough metadata (no cross-division homologation yet,
@@ -186,6 +278,7 @@ def _normalize_core(
         "price": price,
         "currency": currency,
         "status": status,
+        **_extract_extra_fields(raw_row),
     }
     return row, date
 
@@ -225,16 +318,10 @@ def validate_and_normalize(
 
     total = (row["price"] * row["quantity"]).quantize(Decimal("0.01"))
 
-    gold_row = {
-        "sale_id": sale_id,
-        "category": row["category"],
-        "product": row["product"],
-        "quantity": row["quantity"],
-        "price": row["price"],
-        "total": total,
-        "currency": row["currency"],
-        "status": row["status"],
-    }
+    # Extend `row` (already carries the extra fields from _normalize_core,
+    # SPEC-009 §2) rather than rebuilding a dict field-by-field, so those
+    # fields survive into gold_row instead of being silently dropped.
+    gold_row = {**row, "sale_id": sale_id, "total": total}
     return gold_row, date
 
 

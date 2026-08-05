@@ -35,6 +35,32 @@ _NAMED_DATE_FORMATTERS: dict[str, Callable[[datetime.date], str]] = {
     "free_text_es": format_date_free_text,
 }
 
+# Base fields present for every division (SPEC-002 esquema unificado), in the
+# fixed order writers/parsers rely on. Division-specific fields (SPEC-009 §2)
+# are appended after these, in the order listed below.
+BASE_FIELDNAMES: list[str] = [
+    "sale_id",
+    "date",
+    "category",
+    "product",
+    "quantity",
+    "price",
+    "currency",
+    "status",
+]
+
+# Division-specific fields with a free-form generated value (identifiers,
+# not a closed catalog) — generated in engine/common.py::generate_row, so
+# they don't live under `extra_fields` in the YAML like manufacturer/size/etc.
+# Listed here (not derived from the YAML) purely to fix their position within
+# each division's `fieldnames`, matching the order generate_row emits them.
+FREE_FORM_FIELDS: dict[str, list[str]] = {
+    "electronica": ["serial_number", "model"],
+    "supermercado": ["register_number"],
+    "moda": [],
+    "marketplace": ["seller_id"],
+}
+
 
 @dataclass
 class CategoryConfig:
@@ -49,7 +75,7 @@ class CategoryConfig:
 
 @dataclass
 class DivisionConfig:
-    writer: Callable[[list[dict], Path], None]
+    writer: Callable[[list[dict], list[str], dict[str, str], Path], None]
     date_formatter: Callable[[datetime.date], str]
     ext: str
     categories: dict[str, CategoryConfig]
@@ -57,6 +83,14 @@ class DivisionConfig:
     # valores para sesgar la frecuencia (p.ej. la mayoría de ventas en PEN).
     currencies: list[str]
     statuses: list[str]
+    # Catálogos cerrados para los campos específicos de división (SPEC-009 §2),
+    # keyed by field name (ej. {"manufacturer": [...], "warranty_months": [...]}).
+    # Vacío para divisiones sin campos de catálogo cerrado propios.
+    extra_fields: dict[str, list]
+    # sale_id..status (BASE_FIELDNAMES) + los campos propios de esta división
+    # (claves de extra_fields + FREE_FORM_FIELDS[division]), en el orden en que
+    # generate_row los produce. Es lo que cada writer usa como columnas de salida.
+    fieldnames: list[str]
 
 
 def _build_date_formatter(date_format: str) -> Callable[[datetime.date], str]:
@@ -81,6 +115,12 @@ def _load_divisions(config_path: Path) -> tuple[dict[str, DivisionConfig], list[
             )
             for name, cat in spec["categories"].items()
         }
+        extra_fields = spec.get("extra_fields", {})
+        fieldnames = (
+            list(BASE_FIELDNAMES)
+            + list(extra_fields.keys())
+            + FREE_FORM_FIELDS.get(division, [])
+        )
         divisions[division] = DivisionConfig(
             writer=FORMAT_WRITERS[spec["format"]],
             date_formatter=_build_date_formatter(spec["date_format"]),
@@ -88,6 +128,8 @@ def _load_divisions(config_path: Path) -> tuple[dict[str, DivisionConfig], list[
             categories=categories,
             currencies=spec["currencies"],
             statuses=spec["statuses"],
+            extra_fields=extra_fields,
+            fieldnames=fieldnames,
         )
 
     return divisions, list(raw["division_order"])

@@ -37,13 +37,17 @@ def generate_division(
         row = asdict(record)
         row["date"] = config.date_formatter(record.date)
         row = maybe_corrupt(row, config.ext, error_rate)
+        # SaleRecord carries every division's optional fields (schema.py); keep
+        # only this division's own columns (config.fieldnames, SPEC-009 §2) so
+        # e.g. Electrónica's file doesn't show a blank seller_id column.
+        row = {field: row.get(field) for field in config.fieldnames}
         records.append(row)
 
     date_str = date.isoformat()
     partition_dir = output_dir / f"date={date_str}"
     partition_dir.mkdir(parents=True, exist_ok=True)
     output_path = partition_dir / f"{division}_{date_str}.{config.ext}"
-    config.writer(records, output_path)
+    config.writer(records, config.fieldnames, output_path)
 
     print(f"[{division}] generated {rows} rows -> {output_path}")
 

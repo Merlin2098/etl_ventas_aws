@@ -91,6 +91,40 @@ duplicadas al catalogar (ver SPEC-005, "Conversión a Parquet").
 | quantity | integer               | No       | Columna Parquet            | Cantidad vendida, entero positivo                                                             |
 | price    | decimal               | No       | Columna Parquet            | Precio unitario                                                                               |
 | total    | decimal               | No       | Columna Parquet            | `quantity * price`, recalculado en transformación para consistencia                        |
+| currency | string                | No       | Columna Parquet            | Moneda de origen (SPEC-008 #5); passthrough sin homologación cruzada, default `PEN` si falta |
+| status   | string                | No       | Columna Parquet            | Estado propio del sistema origen (SPEC-008 #10); passthrough sin homologación, default `UNKNOWN` si falta |
+
+## Campos específicos por división (SPEC-009 §2)
+
+Además del esquema común de arriba, cada división aporta sus propios campos al
+esquema Gold — reflejando que cada una simula un sistema empresarial distinto
+(ERP, POS, e-commerce, marketplace de terceros; ver SPEC-008 "Categorías
+consideradas"). Todos son **columnas Parquet, nullable = Sí**: una fila de
+Electrónica trae `null` en los campos de Marketplace y viceversa — Gold sigue
+siendo una única tabla plana (`gold/store=<division>/date=<fecha>/`), sin
+tabla separada por división ni columna JSON genérica. No tienen regla de
+validación propia en esta fase (una fila con el campo ausente o mal formado
+no va a cuarentena solo por eso — ver SPEC-005 "Validaciones").
+
+| División | Campo | Tipo | Descripción |
+|----------|-------|------|-------------|
+| Electrónica | `serial_number` | string | Número de serie del producto vendido |
+| Electrónica | `warranty_months` | integer | Meses de garantía del producto |
+| Electrónica | `manufacturer` | string | Fabricante |
+| Electrónica | `model` | string | Modelo del producto |
+| Supermercado | `cashier` | string | Nombre del cajero que registró la venta |
+| Supermercado | `loyalty_points` | integer | Puntos de fidelidad otorgados |
+| Supermercado | `promotion_applied` | boolean | Si la venta tuvo alguna promoción aplicada |
+| Supermercado | `register_number` | string | Caja registradora de origen |
+| Moda | `size` | string | Talla de la prenda |
+| Moda | `color` | string | Color de la prenda |
+| Moda | `collection` | string | Colección/temporada comercial (ej. "Verano 2026") |
+| Moda | `season` | string | Estación del año asociada a la venta |
+| Moda | `return_reason` | string | Motivo de devolución; solo presente en una fracción de filas `RETURNED`/`EXCHANGED` (ver `status`) |
+| Marketplace | `seller_id` | string | Identificador del vendedor tercero |
+| Marketplace | `marketplace_fee` | decimal | Comisión fija cobrada por el marketplace |
+| Marketplace | `commission_pct` | decimal | Porcentaje de comisión sobre la venta |
+| Marketplace | `shipping_provider` | string | Transportista logístico |
 
 Este esquema (columnas Parquet + columnas de partición) es el contrato que consume Athena
 vía Glue Data Catalog (ver SPEC-006). El esquema pyarrow explícito que fija estos tipos al
@@ -115,6 +149,12 @@ Hive igual que en Gold (`silver/store=<division>/date=<fecha>/`), no columnas de
 | product  | string                | No       | Columna Parquet            | Nombre del producto                                             |
 | quantity | integer               | No       | Columna Parquet            | Cantidad vendida, entero positivo                               |
 | price    | decimal               | No       | Columna Parquet            | Precio unitario                                                   |
+| currency | string                | No       | Columna Parquet            | Moneda de origen (SPEC-008 #5)                                    |
+| status   | string                | No       | Columna Parquet            | Estado propio del sistema origen (SPEC-008 #10)                   |
+
+Silver también incluye los campos específicos por división listados arriba
+("Campos específicos por división"), con el mismo criterio: nullable = Sí,
+sin regla de validación propia.
 
 Una fila que no complete estos campos (fecha no parseable, categoría/producto vacío,
 cantidad/precio no numérico o negativo) se considera inválida en esta misma etapa y se

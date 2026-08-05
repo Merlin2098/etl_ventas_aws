@@ -232,6 +232,28 @@ Python (que no garantiza `date` como tipo `date32` ni `price`/`total` como `deci
 ```python
 import pyarrow as pa
 
+# Division-specific fields (SPEC-002 "Campos específicos por división",
+# SPEC-009 §2). Always nullable — one flat table for all 4 divisions.
+EXTRA_FIELDS = [
+    pa.field("serial_number", pa.string(), nullable=True),
+    pa.field("warranty_months", pa.int32(), nullable=True),
+    pa.field("manufacturer", pa.string(), nullable=True),
+    pa.field("model", pa.string(), nullable=True),
+    pa.field("cashier", pa.string(), nullable=True),
+    pa.field("loyalty_points", pa.int32(), nullable=True),
+    pa.field("promotion_applied", pa.bool_(), nullable=True),
+    pa.field("register_number", pa.string(), nullable=True),
+    pa.field("size", pa.string(), nullable=True),
+    pa.field("color", pa.string(), nullable=True),
+    pa.field("collection", pa.string(), nullable=True),
+    pa.field("season", pa.string(), nullable=True),
+    pa.field("return_reason", pa.string(), nullable=True),
+    pa.field("seller_id", pa.string(), nullable=True),
+    pa.field("marketplace_fee", pa.decimal128(10, 2), nullable=True),
+    pa.field("commission_pct", pa.decimal128(5, 2), nullable=True),
+    pa.field("shipping_provider", pa.string(), nullable=True),
+]
+
 SILVER_SCHEMA = pa.schema([
     pa.field("sale_id", pa.string(), nullable=True),
     pa.field("category", pa.string(), nullable=False),
@@ -240,6 +262,7 @@ SILVER_SCHEMA = pa.schema([
     pa.field("price", pa.decimal128(10, 2), nullable=False),
     pa.field("currency", pa.string(), nullable=False),
     pa.field("status", pa.string(), nullable=False),
+    *EXTRA_FIELDS,
 ])
 
 GOLD_SCHEMA = pa.schema([
@@ -251,8 +274,15 @@ GOLD_SCHEMA = pa.schema([
     pa.field("total", pa.decimal128(10, 2), nullable=False),
     pa.field("currency", pa.string(), nullable=False),
     pa.field("status", pa.string(), nullable=False),
+    *EXTRA_FIELDS,
 ])
 ```
+
+Los campos de `EXTRA_FIELDS` no tienen regla de validación en `_normalize_core`
+(SPEC-005 "Validaciones" solo cubre los campos base): un valor ausente o mal
+formado se guarda como `null` en vez de enviar la fila a cuarentena — son
+metadata opcional por división, no parte del contrato mínimo de una venta
+(ver SPEC-002 "Campos específicos por división" para el detalle por campo).
 
 `store` y `date` **no** forman parte de ninguno de los dos esquemas: son columnas de partición Hive
 (codificadas en el path `silver/store=<division>/date=<fecha>/` o `gold/store=<division>/date=<fecha>/`,

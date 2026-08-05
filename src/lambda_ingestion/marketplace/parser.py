@@ -8,8 +8,40 @@ import pdfplumber
 from ..common.errors import FileParseError
 from ..common.parser_base import SalesParser
 
-FIELDNAMES = ["sale_id", "date", "category", "product", "quantity", "price", "currency", "status"]
-HEADER_ROW = ["ID Venta", "Fecha", "Categoría", "Producto", "Cantidad", "Precio", "Moneda", "Estado"]
+# Must match the column order src/generators/detalle-data.yaml (extra_fields)
+# + src/generators/engine/config.py (FREE_FORM_FIELDS) produce for marketplace
+# (base fields + shipping_provider, marketplace_fee, commission_pct, seller_id,
+# SPEC-009 §2) — this Lambda has no dependency on src/generators/ (excluded
+# from the Docker image, see docker/Dockerfile), so the field order is
+# duplicated here rather than imported.
+FIELDNAMES = [
+    "sale_id",
+    "date",
+    "category",
+    "product",
+    "quantity",
+    "price",
+    "currency",
+    "status",
+    "shipping_provider",
+    "marketplace_fee",
+    "commission_pct",
+    "seller_id",
+]
+HEADER_ROW = [
+    "ID Venta",
+    "Fecha",
+    "Categoría",
+    "Producto",
+    "Cantidad",
+    "Precio",
+    "Moneda",
+    "Estado",
+    "Transportista",
+    "Comisión Marketplace",
+    "% Comisión",
+    "ID Vendedor",
+]
 
 
 class PdfSalesParser(SalesParser):

@@ -4,14 +4,12 @@ from pathlib import Path
 
 from openpyxl import Workbook
 
-FIELDNAMES = ["sale_id", "date", "category", "product", "quantity", "price", "currency", "status"]
 
-
-def write_excel(rows: list[dict], output_path: Path) -> None:
+def write_excel(rows: list[dict], fieldnames: list[str], output_path: Path) -> None:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "ventas"
-    sheet.append(FIELDNAMES)
+    sheet.append(fieldnames)
     for row in rows:
-        sheet.append([row.get(field, "") for field in FIELDNAMES])
+        sheet.append([row.get(field, "") for field in fieldnames])
     workbook.save(output_path)

@@ -6,15 +6,15 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
 
-FIELDNAMES = ["sale_id", "date", "category", "product", "quantity", "price", "currency", "status"]
-HEADER_LABELS = ["ID Venta", "Fecha", "Categoría", "Producto", "Cantidad", "Precio", "Moneda", "Estado"]
+from src.generators.engine.common import FIELD_LABELS_ES
 
 
-def write_pdf(rows: list[dict], output_path: Path) -> None:
+def write_pdf(rows: list[dict], fieldnames: list[str], output_path: Path) -> None:
+    header_labels = [FIELD_LABELS_ES[field] for field in fieldnames]
     doc = SimpleDocTemplate(str(output_path), pagesize=letter)
-    data = [HEADER_LABELS]
+    data = [header_labels]
     for row in rows:
-        data.append([str(row.get(field, "")) for field in FIELDNAMES])
+        data.append([str(row.get(field, "")) for field in fieldnames])
 
     table = Table(data, repeatRows=1)
     table.setStyle(

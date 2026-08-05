@@ -165,7 +165,32 @@ class SaleRecord:
     product: str
     quantity: int
     price: Decimal
+    currency: str        # SPEC-008 #5
+    status: str          # SPEC-008 #10
     # total NO se incluye: se calcula en la Lambda (SPEC-002/005), no en el generador
+
+    # Campos específicos por división (SPEC-009 §2), todos Optional = None por
+    # defecto. generate_row solo los puebla para la división a la que pertenecen
+    # (ej. serial_number únicamente en filas de Electrónica); en las demás
+    # divisiones quedan en None y no se escriben al archivo de esa división
+    # (ver "Selección de campos por división" abajo).
+    serial_number: Optional[str] = None       # Electrónica
+    warranty_months: Optional[int] = None      # Electrónica
+    manufacturer: Optional[str] = None         # Electrónica
+    model: Optional[str] = None                # Electrónica
+    cashier: Optional[str] = None              # Supermercado
+    loyalty_points: Optional[int] = None       # Supermercado
+    promotion_applied: Optional[bool] = None   # Supermercado
+    register_number: Optional[str] = None      # Supermercado
+    size: Optional[str] = None                 # Moda
+    color: Optional[str] = None                # Moda
+    collection: Optional[str] = None           # Moda
+    season: Optional[str] = None               # Moda
+    return_reason: Optional[str] = None        # Moda (opcional incluso dentro de Moda)
+    seller_id: Optional[str] = None            # Marketplace
+    marketplace_fee: Optional[Decimal] = None  # Marketplace
+    commission_pct: Optional[Decimal] = None   # Marketplace
+    shipping_provider: Optional[str] = None    # Marketplace
 ```
 
 - `category` y `product` se eligen aleatoriamente del catálogo curado por división
@@ -177,8 +202,34 @@ class SaleRecord:
 - `price`: decimal aleatorio dentro del rango `price_min`-`price_max` de la categoría
   elegida (declarado en el YAML, ej. Electrónica más caro que Moda), con redondeo a 2
   decimales.
+- `currency`/`status`: elegidos aleatoriamente del catálogo `currencies`/`statuses`
+  de la división en el YAML (SPEC-008 #5/#10); ambas listas pueden repetir valores
+  para sesgar la frecuencia (ej. la mayoría de ventas de Supermercado en `PEN`).
 - `store` **no** se genera aquí: lo asigna la Lambda según la división de origen (SPEC-002).
 - `total` **no** se genera aquí: se recalcula en la Lambda (SPEC-002, "Reglas básicas de transformación").
+
+## Selección de campos por división (SPEC-009 §2)
+
+`generate_row` puebla los campos específicos de la división actual mediante
+`_generate_extra_fields` (`engine/common.py`), que combina dos fuentes:
+
+- **Catálogo cerrado** (ej. `manufacturer`, `size`, `cashier`): valores listados
+  en `extra_fields` dentro de `detalle-data.yaml`, elegidos con `random.choice`
+  — mismo patrón que `currencies`/`statuses`.
+- **Identificador libre** (ej. `serial_number`, `seller_id`, `register_number`,
+  `model`): generado directamente en Python (no en el YAML, no son un catálogo
+  cerrado de valores posibles), con un prefijo fijo por campo para que sea
+  reconocible en la demo (ej. `SN-XXXXXXXXXX`, `SELLER-NNNN`).
+
+`config.fieldnames` (`DivisionConfig`, `engine/config.py`) resuelve, para cada
+división, la lista ordenada de columnas propias (los 8 campos base +
+`extra_fields.keys()` + los identificadores libres de esa división). Antes de
+escribir, `generate_division` filtra el dict completo de `SaleRecord` a solo
+`config.fieldnames` — así el archivo de Electrónica no expone una columna
+`seller_id` vacía, por ejemplo. Los 4 writers (`csv_writer`, `excel_writer`,
+`json_writer`, `pdf_writer`) reciben `fieldnames` como parámetro explícito en
+vez de una constante global compartida (antes de SPEC-009 los 4 asumían el
+mismo esquema de 8 campos para toda división).
 
 ---
 

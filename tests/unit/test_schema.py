@@ -16,6 +16,28 @@ from src.lambda_ingestion.common.schema import (
 )
 
 
+# Division-specific fields (SPEC-009 §2), always nullable/optional in this phase.
+EXTRA_FIELD_NAMES = {
+    "serial_number",
+    "warranty_months",
+    "manufacturer",
+    "model",
+    "cashier",
+    "loyalty_points",
+    "promotion_applied",
+    "register_number",
+    "size",
+    "color",
+    "collection",
+    "season",
+    "return_reason",
+    "seller_id",
+    "marketplace_fee",
+    "commission_pct",
+    "shipping_provider",
+}
+
+
 def test_gold_schema_excludes_partition_columns():
     field_names = {field.name for field in GOLD_SCHEMA}
     assert "store" not in field_names
@@ -29,7 +51,13 @@ def test_gold_schema_excludes_partition_columns():
         "total",
         "currency",
         "status",
-    }
+    } | EXTRA_FIELD_NAMES
+
+
+def test_gold_schema_extra_fields_are_nullable():
+    for field in GOLD_SCHEMA:
+        if field.name in EXTRA_FIELD_NAMES:
+            assert field.nullable, f"{field.name} must be nullable"
 
 
 def test_silver_schema_excludes_partition_columns_and_total():
@@ -45,7 +73,7 @@ def test_silver_schema_excludes_partition_columns_and_total():
         "price",
         "currency",
         "status",
-    }
+    } | EXTRA_FIELD_NAMES
 
 
 @pytest.mark.parametrize(
@@ -91,6 +119,41 @@ def test_validate_and_normalize_recalculates_total_ignoring_source_total():
     assert date == datetime.date(2026, 8, 1)
     assert "store" not in gold_row
     assert "date" not in gold_row
+
+
+def test_validate_and_normalize_preserves_division_specific_fields():
+    """SPEC-009 §2: extra fields present in the raw row must survive into
+    gold_row (validate_and_normalize used to rebuild the dict field-by-field,
+    silently dropping anything not in its explicit literal)."""
+    row = {
+        "date": "01/08/2026",
+        "category": "Audio",
+        "product": "Parlante",
+        "quantity": "1",
+        "price": "10.00",
+        "serial_number": "SN-ABC123",
+        "manufacturer": "Sony",
+    }
+    gold_row, _ = validate_and_normalize(
+        row, division="electronica", stage="validate", correlation_id="c1"
+    )
+    assert gold_row["serial_number"] == "SN-ABC123"
+    assert gold_row["manufacturer"] == "Sony"
+
+
+def test_validate_and_normalize_defaults_missing_extra_fields_to_none():
+    row = {
+        "date": "01/08/2026",
+        "category": "Audio",
+        "product": "Parlante",
+        "quantity": "1",
+        "price": "10.00",
+    }
+    gold_row, _ = validate_and_normalize(
+        row, division="electronica", stage="validate", correlation_id="c1"
+    )
+    assert gold_row["serial_number"] is None
+    assert gold_row["seller_id"] is None
 
 
 def test_validate_and_normalize_defaults_currency_and_status_when_missing():
