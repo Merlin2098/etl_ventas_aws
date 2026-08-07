@@ -3,8 +3,10 @@ set -euo pipefail
 
 # Builds the 4 division Lambda images from the single docker/Dockerfile
 # (SPEC-005 / SPEC-004 "Flujo de despliegue"). Local build only — no AWS
-# credentials required, nothing is pushed. Run scripts/docker_push.sh
-# afterwards to publish these images to ECR.
+# credentials required, nothing is pushed. Run scripts/docker/docker_push.sh
+# afterwards to publish these images to ECR. Run from the repo root
+# (docker/Dockerfile and the build context `.` are relative to the cwd,
+# not to this script's location).
 #
 # Each image serves both Lambda functions of its division (ingestion +
 # transform, SPEC-004/SPEC-005) — the transform function overrides the
@@ -37,4 +39,4 @@ done
 
 echo ""
 echo "All images built locally with tag: ${IMAGE_TAG}"
-echo "Run scripts/docker_push.sh to publish them to ECR."
+echo "Run scripts/docker/docker_push.sh to publish them to ECR."

@@ -78,7 +78,7 @@ docker/
 Siguiendo `ai/skills/aws/lambda_packaging.md`, que exige un único `docker/Dockerfile` en
 la raíz del proyecto (no un archivo por división): se usa **un solo Dockerfile** con
 `ARG DIVISION`, invocado 4 veces con distinto `--build-arg DIVISION=<division>` por el
-script de build (ver `scripts/docker_push.sh`, SPEC-004 "Flujo de despliegue"). Cada build
+script de build (ver `scripts/docker/docker_build.sh`, SPEC-004 "Flujo de despliegue"). Cada build
 copia `common/` (que incluye tanto `handler_base.py` como `transform_handler_base.py`, más
 `transform/handler.py`) más la carpeta de la división indicada por el `ARG`, manteniendo la
 imagen resultante mínima igual que con Dockerfiles separados, sin duplicar 4 archivos casi
@@ -121,7 +121,7 @@ defecto de la imagen sigue siendo el de la Lambda de ingesta, y Terraform lo sob
 sustituye variables de `ARG`/`ENV` dentro de la forma exec de `CMD` en tiempo de build
 (solo lo hace para `ENV`, `LABEL`, `COPY`, etc.). Por eso `${DIVISION}` no puede usarse
 dentro de `CMD` — se usa el placeholder literal `__DIVISION__`, que
-`scripts/docker_push.sh` reemplaza con `sed` sobre una copia temporal del Dockerfile antes
+`scripts/docker/docker_build.sh` reemplaza con `sed` sobre una copia temporal del Dockerfile antes
 de invocar `docker build`, una vez por división:
 
 ```bash

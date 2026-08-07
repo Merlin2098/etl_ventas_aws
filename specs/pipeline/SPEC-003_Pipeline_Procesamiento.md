@@ -20,7 +20,7 @@ Ejecución manual de generadores (Python)
         ▼
  Amazon S3 (Bronze) — partición por fecha
         │
-EventBridge (Object Created, prefijo bronze/<division>/)
+EventBridge (Object Created, wildcard bronze/date=*/<division>/)
         │
         ▼
  Lambda de ingesta (Docker) — una función por división/formato
@@ -68,29 +68,31 @@ Cada división tiene su propia función Lambda de ingesta (4 en total) y su prop
 ## Capa Bronze
 
 - Los datos se reciben **tal cual** son generados, sin transformación.
-- Partición por **división y fecha** (la división primero, en el path):
+- Partición por **fecha y división** (la fecha primero, en el path):
 
 ```
-s3://<bucket>/bronze/<division>/date=YYYY-MM-DD/<division>_<YYYY-MM-DD>.<ext>
+s3://<bucket>/bronze/date=YYYY-MM-DD/<division>/<division>_<YYYY-MM-DD>.<ext>
 ```
 
 Ejemplo:
 
 ```
-s3://<bucket>/bronze/electronica/date=2026-08-01/electronica_2026-08-01.csv
-s3://<bucket>/bronze/supermercado/date=2026-08-01/supermercado_2026-08-01.xlsx
-s3://<bucket>/bronze/moda/date=2026-08-01/moda_2026-08-01.json
-s3://<bucket>/bronze/marketplace/date=2026-08-01/marketplace_2026-08-01.pdf
+s3://<bucket>/bronze/date=2026-08-01/electronica/electronica_2026-08-01.csv
+s3://<bucket>/bronze/date=2026-08-01/supermercado/supermercado_2026-08-01.xlsx
+s3://<bucket>/bronze/date=2026-08-01/moda/moda_2026-08-01.json
+s3://<bucket>/bronze/date=2026-08-01/marketplace/marketplace_2026-08-01.pdf
 ```
 
-La división queda identificada tanto en el prefijo del path como en el nombre de archivo.
-El prefijo (`bronze/<division>/`) es lo que permite filtrar el evento de EventBridge por
-división (ver "Eventos de S3"): la división va primero en el path por convención y
-legibilidad, no por una limitación técnica del filtro — el `event_pattern` de EventBridge
-admite `prefix` sobre cualquier segmento de la key (incluido uno seguido de un segmento
-variable como la fecha), a diferencia del `filter_prefix` de la notificación S3 directa que
-usaba este pipeline antes de migrar a EventBridge, que solo podía anclarse al inicio de la
-key. Un layout `bronze/date=.../` (fecha primero) también sería viable hoy.
+La división queda identificada tanto en el segundo segmento del path como en el nombre de
+archivo. La fecha va primero en el path (a diferencia de Silver/Gold, que llevan división
+primero) para que una carga de un mismo día agrupe las cuatro divisiones bajo una sola
+carpeta `date=<fecha>/` — el caso de uso de cargar Bronze arrastrando una carpeta a la
+consola web de S3 (ver `docs/consideraciones/carga_web_bronze.md`).
+
+Esto exige que el filtrado de EventBridge por división ya no pueda anclarse al inicio de la
+key con `prefix` (el segundo segmento es ahora la fecha, variable). En su lugar se usa el
+operador `wildcard` de EventBridge, que sí admite anclar un segmento en medio de la key:
+`bronze/date=*/<division>/*` (ver "Eventos de S3" más abajo).
 
 ## Capa Silver
 
@@ -129,7 +131,7 @@ s3://<bucket>/quarantine/store=<division>/date=YYYY-MM-DD/errors-*.json
 
 - El bucket de datos tiene habilitadas las notificaciones a EventBridge (`aws_s3_bucket_notification` con `eventbridge = true`): cada `PutObject` exitoso se publica como evento `Object Created` (`source: aws.s3`) en el bus de eventos por defecto de la cuenta, sin pasar por una suscripción directa S3 -> Lambda.
 - Se configuran 8 **reglas de EventBridge** (`aws_cloudwatch_event_rule`), una por división y por etapa, cada una con su propio `aws_cloudwatch_event_target` apuntando a la Lambda correspondiente:
-  - Ingesta: una regla por división, con `event_pattern` filtrando `detail.bucket.name` (el bucket de datos) y `detail.object.key` por `prefix = "bronze/<division>/"` (ej. `bronze/electronica/` para la Lambda de ingesta de Electrónica), invoca la Lambda de ingesta correspondiente.
+  - Ingesta: una regla por división, con `event_pattern` filtrando `detail.bucket.name` (el bucket de datos) y `detail.object.key` por `wildcard = "bronze/date=*/<division>/*"` (ej. `bronze/date=*/electronica/*` para la Lambda de ingesta de Electrónica — el operador `wildcard` es necesario porque `prefix` solo ancla al inicio de la key, y la división ya no es el primer segmento), invoca la Lambda de ingesta correspondiente.
   - Transformación: una regla por división, con el mismo patrón filtrando `prefix = "silver/store=<division>/"`, invoca la Lambda de transformación correspondiente.
 - Cada regla tiene su propio `aws_lambda_permission` (`principal = "events.amazonaws.com"`, `source_arn` = ARN de la regla), scopeado 1:1 a esa regla — a diferencia de una notificación S3 directa, donde un único recurso `aws_s3_bucket_notification` por bucket forzaba agrupar las 8 suscripciones en un mismo bloque de configuración.
 - No se utiliza SQS como buffer intermedio: cada archivo dispara una invocación independiente de la Lambda correspondiente a su etapa (modelo simple, adecuado para el volumen y propósito didáctico de esta demo).
@@ -146,7 +148,7 @@ s3://<bucket>/quarantine/store=<division>/date=YYYY-MM-DD/errors-*.json
 
 # Detección del tipo de archivo
 
-- La selección de la función Lambda correcta ocurre a nivel de infraestructura (`event_pattern` de la regla de EventBridge, filtrando por prefijo `bronze/<division>/`), no dentro de la función.
+- La selección de la función Lambda correcta ocurre a nivel de infraestructura (`event_pattern` de la regla de EventBridge, filtrando por wildcard `bronze/date=*/<division>/*`), no dentro de la función.
 - Dentro de cada Lambda, el formato es conocido de antemano (una función = un formato = un parser), por lo que no existe lógica de detección/enrutamiento en tiempo de ejecución.
 - Si un archivo llega a `bronze/` bajo un prefijo de división que no coincide con ninguna regla configurada, ninguna Lambda se invoca; el archivo queda huérfano en Bronze (ver "Flujo de errores").
 
@@ -164,7 +166,7 @@ Ocurre en dos etapas, cada una en su propia Lambda (ver SPEC-002 esquemas Silver
 # Escritura en las capas Silver y Gold
 
 - Las filas válidas se escriben en formato **Parquet**: Silver en `silver/store=<division>/date=<fecha>/` (Lambda de ingesta), Gold en `gold/store=<division>/date=<fecha>/` (Lambda de transformación) — en ambos casos sin las columnas `store` ni `date` dentro del archivo (quedan codificadas en el path como partición Hive; ver SPEC-002 y SPEC-005).
-- Reprocesar el mismo archivo de origen (mismo `bronze/<division>/date=.../<division>_<fecha>.<ext>`) **sobrescribe** el resultado correspondiente tanto en Silver como en Gold para esa partición división+fecha ("último gana"); no se contempla deduplicación ni versionado de escrituras.
+- Reprocesar el mismo archivo de origen (mismo `bronze/date=.../<division>/<division>_<fecha>.<ext>`) **sobrescribe** el resultado correspondiente tanto en Silver como en Gold para esa partición división+fecha ("último gana"); no se contempla deduplicación ni versionado de escrituras.
 - Para cumplir "último gana" de forma efectiva, cada Lambda **borra los objetos existentes** bajo su propia partición (`silver/store=<division>/date=<fecha>/` o `gold/store=<division>/date=<fecha>/`, según corresponda) antes de escribir el nuevo Parquet de la invocación (delete-then-write). Esto es necesario porque el nombre del archivo Parquet incluye el `request_id` de la invocación (ver SPEC-005) y por lo tanto es distinto en cada reprocesamiento; sin el borrado previo, los archivos se acumularían en la misma partición en vez de sobrescribirse, duplicando filas en las consultas de Athena.
 
 ---

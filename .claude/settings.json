@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"bronze/<division>\\\\|bronze/electronica\\\\|bronze/\\\\${each\" \"specs/pipeline/SPEC-003_Pipeline_Procesamiento.md\")"
+    ]
+  }
+}

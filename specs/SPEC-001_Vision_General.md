@@ -272,7 +272,6 @@ Estos temas podrán desarrollarse en webinars posteriores.
 
 Posibles versiones posteriores del laboratorio:
 
-- Particionado por fecha.
 - EventBridge Scheduler para cargas automáticas (distinto del enrutamiento de eventos `Object Created` ya implementado — ver "Arquitectura propuesta" y SPEC-003; Scheduler dispararía la *generación* periódica de archivos, no el paso entre etapas del pipeline).
 - Step Functions para orquestación.
 - Glue Jobs con Spark.
@@ -280,3 +279,14 @@ Posibles versiones posteriores del laboratorio:
 - Iceberg Tables.
 - QuickSight para visualización.
 - Integración con IA para extracción inteligente de PDFs.
+- Frontend de carga para el usuario final (formulario web + API Gateway/Lambda
+  que emite una URL prefirmada de S3 hacia `bronze/date=<fecha>/<division>/`),
+  como alternativa a la carga manual por CLI/generadores/consola S3. Aditivo,
+  no reemplaza el enrutamiento S3 + EventBridge ya implementado — solo agrega
+  una capa de recepción delante de Bronze. Para la demo actual se optó por una
+  alternativa más simple sin infraestructura nueva: carga por consola web de
+  S3 (drag-and-drop de `data/date=<fecha>/`, un día completo con las 4
+  divisiones a la vez, mismo layout que Bronze) — ver
+  [carga_web_bronze.md](../docs/consideraciones/carga_web_bronze.md). Esta
+  entrada queda como evolución posible si en el futuro se necesita servir
+  carga a usuarios sin acceso a la consola AWS.

@@ -11,14 +11,14 @@ def test_extract_s3_location_from_s3_notification_envelope():
             {
                 "s3": {
                     "bucket": {"name": "data-platform-dev-184670914470-datalake"},
-                    "object": {"key": "bronze/electronica/ventas.csv"},
+                    "object": {"key": "bronze/date=2026-08-02/electronica/ventas.csv"},
                 }
             }
         ]
     }
     bucket, key = extract_s3_location(event)
     assert bucket == "data-platform-dev-184670914470-datalake"
-    assert key == "bronze/electronica/ventas.csv"
+    assert key == "bronze/date=2026-08-02/electronica/ventas.csv"
 
 
 def test_extract_s3_location_from_s3_notification_decodes_url_encoded_key():
@@ -27,14 +27,14 @@ def test_extract_s3_location_from_s3_notification_decodes_url_encoded_key():
             {
                 "s3": {
                     "bucket": {"name": "data-platform-dev-184670914470-datalake"},
-                    "object": {"key": "bronze/electronica/ventas+de+agosto.csv"},
+                    "object": {"key": "bronze/date=2026-08-02/electronica/ventas+de+agosto.csv"},
                 }
             }
         ]
     }
     bucket, key = extract_s3_location(event)
     assert bucket == "data-platform-dev-184670914470-datalake"
-    assert key == "bronze/electronica/ventas de agosto.csv"
+    assert key == "bronze/date=2026-08-02/electronica/ventas de agosto.csv"
 
 
 def test_extract_s3_location_from_eventbridge_envelope():
@@ -53,11 +53,11 @@ def test_extract_s3_location_from_eventbridge_does_not_decode_key():
     event = {
         "detail": {
             "bucket": {"name": "data-platform-dev-184670914470-datalake"},
-            "object": {"key": "bronze/electronica/ventas+de+agosto.csv"},
+            "object": {"key": "bronze/date=2026-08-02/electronica/ventas+de+agosto.csv"},
         }
     }
     bucket, key = extract_s3_location(event)
-    assert key == "bronze/electronica/ventas+de+agosto.csv"
+    assert key == "bronze/date=2026-08-02/electronica/ventas+de+agosto.csv"
 
 
 def test_extract_s3_location_raises_on_unrecognized_shape():

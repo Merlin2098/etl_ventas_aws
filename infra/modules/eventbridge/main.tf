@@ -11,14 +11,14 @@ resource "aws_cloudwatch_event_rule" "ingestion" {
   for_each = toset(var.divisions)
 
   name        = "${var.name_prefix}-ingestion-${each.key}"
-  description = "Objetos nuevos en bronze/${each.key}/ -> Lambda de ingesta"
+  description = "Objetos nuevos en bronze/date=*/${each.key}/ -> Lambda de ingesta"
 
   event_pattern = jsonencode({
     source        = ["aws.s3"]
     "detail-type" = ["Object Created"]
     detail = {
       bucket = { name = [var.data_bucket_name] }
-      object = { key = [{ prefix = "bronze/${each.key}/" }] }
+      object = { key = [{ wildcard = "bronze/date=*/${each.key}/*" }] }
     }
   })
 

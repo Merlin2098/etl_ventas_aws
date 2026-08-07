@@ -51,9 +51,9 @@ Cada módulo expone `log_group_name`, `log_group_arn` y el/los `resource_arn` re
 
 ## `modules/eventbridge`
 
-- 8 `aws_cloudwatch_event_rule` (una por división y por etapa) con `event_pattern` filtrando `source: aws.s3`, `detail-type: Object Created`, el nombre del bucket de datos, y el prefijo de la key:
-  - Ingesta: `prefix = "bronze/<division>/"` (ej. `bronze/electronica/`).
-  - Transformación: `prefix = "silver/store=<division>/"`.
+- 8 `aws_cloudwatch_event_rule` (una por división y por etapa) con `event_pattern` filtrando `source: aws.s3`, `detail-type: Object Created`, el nombre del bucket de datos, y la key:
+  - Ingesta: `wildcard = "bronze/date=*/<division>/*"` (ej. `bronze/date=*/electronica/*`) — Bronze particiona por fecha primero, así que el operador `prefix` (que solo ancla al inicio de la key) no alcanza para filtrar por división; se usa `wildcard` para anclar la división como segmento intermedio.
+  - Transformación: `prefix = "silver/store=<division>/"` (Silver mantiene división primero, sin cambios).
 - 8 `aws_cloudwatch_event_target`, uno por regla, apuntando al ARN de la Lambda de ingesta o transformación correspondiente.
 - 8 `aws_lambda_permission` (`principal = "events.amazonaws.com"`, `source_arn` = ARN de la regla propia), uno por regla — ver "Policy 010" más abajo para por qué viven en este módulo y no en `lambda_ingestion`.
 - Recibe como variables de entrada los 4 maps de ARN/nombre de Lambda (ingesta y transformación) expuestos por `modules/lambda_ingestion`, y el nombre del bucket expuesto por `modules/s3_data_lake`.
@@ -70,7 +70,7 @@ Cada módulo expone `log_group_name`, `log_group_arn` y el/los `resource_arn` re
 
 - **Lambda de ingesta** (una por división, 4 en total):
   - `package_type = "Image"`, referenciando el URI de la imagen ya publicada en el repositorio ECR correspondiente.
-  - Rol IAM de ejecución dedicado (least privilege): permisos de lectura sobre `bronze/<division>/`, escritura sobre `silver/store=<division>/` y `quarantine/store=<division>/`, y `logs:CreateLogStream`/`logs:PutLogEvents` sobre su propio log group.
+  - Rol IAM de ejecución dedicado (least privilege): permisos de lectura sobre `bronze/date=*/<division>/`, escritura sobre `silver/store=<division>/` y `quarantine/store=<division>/`, y `logs:CreateLogStream`/`logs:PutLogEvents` sobre su propio log group.
   - Variables de entorno específicas de división (detalle en SPEC-005): nombre de bucket, prefijos de silver/quarantine, nombre de división.
 - **Lambda de transformación** (una por división, 4 en total):
   - Misma imagen ECR que la Lambda de ingesta de su división, pero con `image_config.command` sobreescribiendo el `CMD` de la imagen para apuntar al handler de transformación (`lambda_ingestion.transform.handler.handler`) — no requiere un build ni repositorio ECR adicional.
@@ -208,14 +208,22 @@ modules/athena
 
 # Flujo de despliegue
 
-1. **Build y push de imágenes** (fuera de Terraform, vía script/Makefile): por cada división, `docker build` + `docker push` hacia el repositorio ECR correspondiente. Cada imagen sirve tanto a la Lambda de ingesta como a la de transformación de esa división (ver SPEC-005) — no hay build separado por etapa. Requiere que el repositorio ECR ya exista.
-2. **Primer `terraform apply`**: crea `modules/ecr` (repositorios vacíos).
-3. Ejecutar el script de build/push (paso 1) para poblar los repositorios con al menos una imagen.
-4. Actualizar `lambda_image_tag` en `terraform.tfvars` con el tag/digest publicado.
-5. **Segundo `terraform apply`**: crea `lambda_ingestion` (8 funciones), `s3_data_lake` (con `eventbridge = true`), `eventbridge` (8 reglas + 8 targets + 8 permisos, ya apuntando a las 8 Lambdas existentes), `glue_catalog` y `athena`.
-6. Iteraciones posteriores de código de Lambda: repetir pasos 1, 4 y 5 (build/push + actualizar tag + apply) para desplegar la nueva imagen a ambas funciones de cada división.
+`lambda_image_tag` (ver "Variables") tiene como default `"placeholder"` para
+las 4 divisiones — un tag que no existe todavía en ningún repositorio ECR.
+`aws_lambda_function` con `package_type = "Image"` exige un `image_uri` con
+formato válido al crear el recurso, pero AWS **no valida que la imagen exista**
+en ese momento — solo al invocar la función. Ese default es lo que permite
+desplegar todo en un primer `apply`, sin necesitar `-target` ni una fase
+intermedia solo para `modules/ecr`:
 
-Este flujo en dos fases (repositorio antes que función) es necesario porque `aws_lambda_function` con `package_type = "Image"` requiere que la imagen ya exista en ECR al momento de crear el recurso.
+1. **Primer `terraform apply`**: crea todo — `modules/ecr` (repositorios vacíos), `lambda_ingestion` (8 funciones, con `image_uri` apuntando al tag placeholder), `s3_data_lake` (con `eventbridge = true`), `eventbridge` (8 reglas + 8 targets + 8 permisos), `glue_catalog` y `athena`. Las 8 Lambdas existen pero no son invocables todavía (su imagen no existe en ECR).
+2. **Build y push de imágenes** (fuera de Terraform, vía script/Makefile): por cada división, `docker build` + `docker push` hacia el repositorio ECR correspondiente (ya creados por el paso 1). Cada imagen sirve tanto a la Lambda de ingesta como a la de transformación de esa división (ver SPEC-005) — no hay build separado por etapa.
+3. Actualizar `lambda_image_tag` en `terraform.tfvars` con el tag/digest publicado.
+4. **Segundo `terraform apply`**: detecta el cambio de `image_uri` en las 8 funciones (comparado contra el placeholder) y las actualiza in-place. A partir de acá el pipeline es funcional de punta a punta.
+5. Iteraciones posteriores de código de Lambda: repetir pasos 2-4 (build/push + actualizar tag + apply) para desplegar la nueva imagen a ambas funciones de cada división.
+
+Comando exacto y checklist operativo en
+[docs/consideraciones/despliegue.md](../../docs/consideraciones/despliegue.md).
 
 ---
 

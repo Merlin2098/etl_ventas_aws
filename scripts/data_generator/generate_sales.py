@@ -44,7 +44,7 @@ def generate_division(
         records.append(row)
 
     date_str = date.isoformat()
-    partition_dir = output_dir / f"date={date_str}"
+    partition_dir = output_dir / f"date={date_str}" / division
     partition_dir.mkdir(parents=True, exist_ok=True)
     output_path = partition_dir / f"{division}_{date_str}.{config.ext}"
     config.writer(records, config.fieldnames, output_path)
@@ -58,6 +58,34 @@ def generate_division(
     return output_path
 
 
+def prompt_date(label: str, *, allow_blank: bool = False) -> datetime.date | None:
+    """Prompts on stdin until a valid YYYY-MM-DD date is entered. If
+    `allow_blank`, an empty line returns None (caller decides the default)."""
+    while True:
+        raw = input(label).strip()
+        if not raw and allow_blank:
+            return None
+        try:
+            return datetime.date.fromisoformat(raw)
+        except ValueError:
+            print(f"Fecha inválida: {raw!r} — usá el formato YYYY-MM-DD.")
+
+
+def prompt_dates() -> list[datetime.date]:
+    """Interactively asks for a start date and an optional end date, returning
+    every date in that range (inclusive, oldest first). A blank end date
+    generates a single day."""
+    start = prompt_date("Fecha inicio (YYYY-MM-DD): ")
+    end = prompt_date(
+        "Fecha fin (YYYY-MM-DD, Enter para un solo día): ", allow_blank=True
+    )
+    if end is None:
+        return [start]
+    if end < start:
+        start, end = end, start
+    return date_range(start, end)
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Generate synthetic RetailCorp sales files."
@@ -67,18 +95,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="all",
         choices=[*DIVISION_ORDER, "all"],
         help="Division to generate, or 'all' to run the five in sequence.",
-    )
-    parser.add_argument(
-        "--date",
-        default=None,
-        help="Business date (YYYY-MM-DD). Defaults to today. With --week, this "
-        "is the last day of the 7-day window instead of the only day.",
-    )
-    parser.add_argument(
-        "--week",
-        action="store_true",
-        help="Generate 7 consecutive days ending on --date (default: today), "
-        "one partition folder per day, to simulate a week of history in S3.",
     )
     parser.add_argument(
         "--rows",
@@ -109,17 +125,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def week_ending(last_day: datetime.date) -> list[datetime.date]:
-    """7 consecutive dates, oldest first, ending on `last_day` (inclusive)."""
-    return [last_day - datetime.timedelta(days=offset) for offset in range(6, -1, -1)]
+def date_range(start: datetime.date, end: datetime.date) -> list[datetime.date]:
+    """Every date from `start` to `end`, inclusive, oldest first."""
+    days = (end - start).days
+    return [start + datetime.timedelta(days=offset) for offset in range(days + 1)]
 
 
 def main() -> None:
     args = parse_args()
     output_dir = Path(args.output_dir)
-    anchor_date = datetime.date.fromisoformat(args.date or datetime.date.today().isoformat())
-
-    dates = week_ending(anchor_date) if args.week else [anchor_date]
+    dates = prompt_dates()
 
     divisions = DIVISION_ORDER if args.division == "all" else [args.division]
     for date in dates:

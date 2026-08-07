@@ -25,16 +25,18 @@ resource "aws_cloudwatch_log_group" "division" {
   tags              = var.tags
 }
 
-# Least-privilege per division: read bronze/<division>/, write silver/ + quarantine/
-# (both are division-partitioned so a single statement per division covers only
-# its own partition), and logs scoped to its own log group.
+# Least-privilege per division: read bronze/date=*/<division>/ (Bronze is
+# date-partitioned first, division second — see SPEC-003), write silver/ +
+# quarantine/ (both are division-partitioned so a single statement per
+# division covers only its own partition), and logs scoped to its own log
+# group.
 data "aws_iam_policy_document" "division" {
   for_each = toset(var.divisions)
 
   statement {
     sid       = "ReadOwnBronzePrefix"
     actions   = ["s3:GetObject"]
-    resources = ["${var.data_bucket_arn}/bronze/${each.key}/*"]
+    resources = ["${var.data_bucket_arn}/bronze/date=*/${each.key}/*"]
   }
 
   statement {

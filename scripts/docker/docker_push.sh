@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Publishes the 4 division Lambda images built by scripts/docker_build.sh to
+# Publishes the 4 division Lambda images built by scripts/docker/docker_build.sh to
 # their ECR repositories (SPEC-005 / SPEC-004 "Flujo de despliegue"). Requires
 # the ECR repositories to already exist (first `terraform apply`, SPEC-004)
-# and AWS credentials valid for `aws ecr get-login-password`.
+# and AWS credentials valid for `aws ecr get-login-password`. Run from the
+# repo root (terraform -chdir=infra is relative to the cwd).
 
 DIVISIONS=(electronica supermercado moda marketplace)
 IMAGE_TAG=$(git rev-parse --short HEAD)
@@ -14,7 +15,7 @@ REGION="${AWS_REGION:-us-east-1}"
 for DIVISION in "${DIVISIONS[@]}"; do
   LOCAL_IMAGE="${ECR_REGISTRY_PLACEHOLDER}/${DIVISION}:${IMAGE_TAG}"
   if ! docker image inspect "$LOCAL_IMAGE" > /dev/null 2>&1; then
-    echo "Missing local image ${LOCAL_IMAGE} — run scripts/docker_build.sh first." >&2
+    echo "Missing local image ${LOCAL_IMAGE} — run scripts/docker/docker_build.sh first." >&2
     exit 1
   fi
 done

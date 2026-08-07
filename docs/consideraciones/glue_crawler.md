@@ -18,6 +18,14 @@ aws glue get-crawler --name data-platform-dev-gold-crawler --query 'Crawler.Stat
 aws glue get-crawler --name data-platform-dev-gold-crawler --query 'Crawler.LastCrawl' --output json
 ```
 
+O con `scripts/aws/run_glue_crawler.sh`, que resuelve el nombre del crawler
+desde el output de Terraform, dispara la corrida, hace el polling hasta
+`READY` y valida `LastCrawl.Status` en un solo comando:
+
+```bash
+./scripts/aws/run_glue_crawler.sh
+```
+
 Por consola: Glue → Crawlers → `data-platform-dev-gold-crawler` → **Run**.
 
 No se usa `MSCK REPAIR TABLE` ni `ALTER TABLE ADD PARTITION` manual en este
@@ -26,7 +34,7 @@ un único mecanismo de descubrimiento (SPEC-006).
 
 ## El Crawler es manual: cargar a S3 no basta para que Athena vea los datos
 
-Subir un archivo directo a `bronze/<división>/date=<fecha>/` (por CLI, consola
+Subir un archivo directo a `bronze/date=<fecha>/<división>/` (por CLI, consola
 S3, o cualquier método fuera del generador Python) **sí** dispara el pipeline
 completo de forma automática — EventBridge invoca la Lambda de ingesta, luego
 la de transformación, hasta escribir en `gold/`. Esa parte no requiere ningún

@@ -17,12 +17,18 @@ que lo resuelve, y al final cómo desplegarlo y operarlo paso a paso.
 forma independiente. Cada una genera diariamente un archivo con las ventas del
 día — y cada una lo exporta desde un sistema distinto, en un formato distinto:
 
-| División | Sistema de origen simulado | Formato | Formato de fecha |
-|----------|---------------------------|---------|------------------|
-| Electrónica | ERP propio | CSV | `DD/MM/YYYY` |
-| Supermercado | Sistema POS | Excel (`.xlsx`) | `MM-DD-YYYY` |
-| Moda | Plataforma E-commerce | JSON | ISO 8601 |
-| Marketplace | API de terceros | PDF | `"4 de agosto de 2026"` |
+| División | Sistema de origen simulado | Formato | Formato de fecha | Campos propios |
+|----------|---------------------------|---------|------------------|-----------------|
+| Electrónica | ERP propio | CSV | `DD/MM/YYYY` | `serial_number`, `warranty_months`, `manufacturer`, `model` |
+| Supermercado | Sistema POS | Excel (`.xlsx`) | `MM-DD-YYYY` | `cashier`, `loyalty_points`, `promotion_applied`, `register_number` |
+| Moda | Plataforma E-commerce | JSON | ISO 8601 | `size`, `color`, `collection`, `season`, `return_reason` |
+| Marketplace | API de terceros | PDF | `"4 de agosto de 2026"` | `seller_id`, `marketplace_fee`, `commission_pct`, `shipping_provider` |
+
+Más allá del formato, cada división simula un **sistema empresarial distinto**,
+no solo un archivo distinto: sus campos propios son los que un ERP, un POS, un
+e-commerce y un marketplace de terceros realmente tendrían y que no existen en
+los otros tres. Ningún archivo trae columnas de otra división — el generador
+escribe solo las suyas.
 
 El equipo de Data Engineering recibe estos cuatro archivos cada día y necesita
 responder preguntas de negocio que cruzan todas las divisiones:
@@ -57,6 +63,8 @@ Los cuatro formatos convergen aquí. Este es el contrato que consume Athena:
 | `quantity` | integer > 0 | Columna Parquet | Cantidad vendida |
 | `price` | decimal(10,2) > 0 | Columna Parquet | Precio unitario |
 | `total` | decimal(10,2) | Columna Parquet | `quantity * price`, **siempre recalculado** |
+| `currency` | string | Columna Parquet | Moneda de origen (`PEN`/`USD`/`EUR`), sin homologar entre divisiones |
+| `status` | string | Columna Parquet | Estado propio del sistema origen (ej. `INVOICED`, `DELIVERED`, `PAID`) |
 
 > **Detalle didáctico importante:** `store` y `date` **no** se escriben dentro
 > del archivo Parquet. Van codificadas en la ruta S3 como particiones Hive
@@ -64,6 +72,14 @@ Los cuatro formatos convergen aquí. Este es el contrato que consume Athena:
 > `SELECT` porque el Glue Crawler las registra como columnas de partición.
 > Escribirlas también dentro del Parquet produciría **columnas duplicadas** al
 > catalogar — un error clásico al construir un data lake por primera vez.
+
+**Además de este esquema común, cada división aporta sus propios campos** (ver
+tabla de la sección 1) como columnas Parquet **nullable** — una fila de
+Electrónica trae `null` en `seller_id`, una de Marketplace trae `null` en
+`serial_number`, etc. Sigue siendo **una sola tabla Gold**, no una tabla por
+división: es el mismo principio de "un esquema convergente" llevado al detalle
+de negocio, no solo al formato de archivo. Detalle campo por campo en
+[SPEC-002](specs/pipeline/SPEC-002_Modelo_Datos_Datasets.md#campos-específicos-por-división-spec-009-2).
 
 ---
 
@@ -76,11 +92,11 @@ Generadores Python (ejecución manual)
         │  PutObject
         ▼
 ┌─────────────────────────────────────────────┐
-│ S3  bronze/<division>/date=<fecha>/          │  ← archivo tal cual llegó
+│ S3  bronze/date=<fecha>/<division>/          │  ← archivo tal cual llegó
 └─────────────────────────────────────────────┘
         │  Object Created → EventBridge (bus por defecto)
         ▼
-   EventBridge rule "ingestion-<division>"   (filtra prefix bronze/<division>/)
+   EventBridge rule "ingestion-<division>"   (wildcard bronze/date=*/<division>/*)
         │  invoke
         ▼
    Lambda ingestion-<division>   (Docker sobre ECR)
@@ -144,7 +160,9 @@ módulo común compartido por las cuatro divisiones.
   de transformación no tiene parser propio; sólo cambia el `CMD` vía
   `image_config.command` en Terraform. Cuatro builds, ocho funciones.
 - **Sin detección de formato en runtime.** Cada Lambda ya sabe qué formato lee,
-  porque la regla de EventBridge la seleccionó por prefijo. No hay `if
+  porque la regla de EventBridge la seleccionó por la key del evento (wildcard
+  sobre `bronze/date=*/<division>/*` para ingesta, prefix sobre
+  `silver/store=<division>/` para transformación). No hay `if
   archivo.endswith(".csv")` en ninguna parte — el enrutamiento vive en la
   infraestructura.
 - **IAM least-privilege por función**, declarado en el módulo Terraform que
@@ -161,7 +179,7 @@ módulo común compartido por las cuatro divisiones.
 | Servicio | Rol en el pipeline |
 |----------|--------------------|
 | **Amazon S3** | Almacenamiento del Data Lake (4 capas por prefijo) + resultados de Athena |
-| **Amazon EventBridge** | Enruta cada evento `Object Created` a la Lambda correcta según el prefijo de la key |
+| **Amazon EventBridge** | Enruta cada evento `Object Created` a la Lambda correcta según la key (wildcard en Bronze, prefix en Silver) |
 | **AWS Lambda** | Procesamiento: 4 funciones de ingesta (una por formato) + 4 de transformación |
 | **Amazon ECR** | Aloja las 4 imágenes Docker (permite dependencias pesadas como `pdfplumber`/`pyarrow`, imposibles en un ZIP) |
 | **AWS Glue** | Data Catalog + Crawler que descubre tabla y particiones sobre `gold/` |
@@ -211,7 +229,8 @@ módulo común compartido por las cuatro divisiones.
 ├── scripts/
 │   ├── data_generator/generate_sales.py
 │   ├── testing/              # run_local_ingestion, run_pytest, run_cloud_tests, ruff
-│   ├── docker_build.sh / docker_push.sh
+│   ├── docker/                # docker_build.sh, docker_push.sh
+│   ├── aws/                   # upload_to_aws.sh, run_glue_crawler.sh
 │   └── python/setup_env.sh
 ├── docker/Dockerfile         # único, parametrizado con ARG DIVISION
 └── tests/
@@ -235,6 +254,7 @@ correspondiente, no en el código.
 | [SPEC-006](specs/pipeline/SPEC-006_Analitica_Validacion_E2E.md) | Glue, Athena y validación E2E |
 | [SPEC-007](specs/generadores/SPEC-007_Generadores_Datos_Sinteticos.md) | Generadores de datos sintéticos |
 | [SPEC-008](specs/generadores/SPEC-008_Consideraciones.md) | Complejización realista de los datasets |
+| [SPEC-009](specs/upgrade/SPEC-009-mejora.md) | Backlog de la segunda iteración (evolución del laboratorio) |
 
 ---
 
@@ -266,27 +286,42 @@ O con el script del proyecto (Git Bash):
 ### Paso 1 — Generar los datos sintéticos
 
 ```bash
-# Las 4 divisiones, fecha de hoy, sólo local (no sube a S3)
+# Las 4 divisiones, sólo local (no sube a S3) — pide la fecha por consola
 python scripts/data_generator/generate_sales.py
 
-# Una división concreta, fecha específica, reproducible
-python scripts/data_generator/generate_sales.py --division electronica --date 2026-08-04 --seed 42
+# Una división concreta, reproducible — la fecha se sigue pidiendo por consola
+python scripts/data_generator/generate_sales.py --division electronica --seed 42
 ```
+
+El script pregunta interactivamente por la fecha (o un rango de fechas):
+
+```
+Fecha inicio (YYYY-MM-DD): 2026-08-04
+Fecha fin (YYYY-MM-DD, Enter para un solo día):
+```
+
+Dejar la fecha fin en blanco (Enter) genera un solo día; completarla genera
+todos los días del rango indicado, uno por división y por fecha.
 
 | Argumento | Descripción | Default |
 |-----------|-------------|---------|
 | `--division` | `electronica`, `supermercado`, `moda`, `marketplace` o `all` | `all` |
-| `--date` | Fecha de negocio a generar (`YYYY-MM-DD`) | Hoy |
 | `--rows` | Cantidad de filas | 200-500 |
 | `--error-rate` | Proporción de filas con errores intencionales | `0.05` (5%) |
 | `--seed` | Semilla para reproducir el dataset exacto | aleatorio |
 | `--upload` / `--no-upload` | Subir a S3 Bronze (requiere `DATA_BUCKET`) | `--no-upload` |
 | `--output-dir` | Carpeta de salida local | `data/` |
 
-Los archivos aparecen en `data/` con el nombre
-`<division>_<fecha>.<ext>`. **Ábrilos**: son la materia prima del laboratorio, y
+Los archivos aparecen en `data/date=<fecha>/<division>/` con el nombre
+`<division>_<fecha>.<ext>` — mismo layout que usa Bronze en S3
+(`bronze/date=<fecha>/<division>/...`), para poder arrastrar la carpeta de
+una fecha completa (las 4 divisiones a la vez) tal cual a la consola de S3
+(ver "5. Desplegar en AWS" más abajo). **Ábrilos**: son
+la materia prima del laboratorio, y
 verlos lado a lado (un CSV, un Excel, un JSON y un PDF con la misma información
-estructurada de forma distinta) es la mejor introducción al problema.
+estructurada de forma distinta) es la mejor introducción al problema. Notá
+también que cada archivo trae **solo las columnas de su propia división** —
+el CSV de Electrónica no tiene una columna `seller_id` vacía, por ejemplo.
 
 > **Los errores están sembrados a propósito.** Un 5% de las filas trae campos
 > faltantes, `quantity = "N/A"`, precios negativos, fechas como `"ayer"`, o un
@@ -342,9 +377,17 @@ reemplazo (`�`) en los campos de texto.
 
 ## 5. Desplegar en AWS
 
-El despliegue es en **dos fases**, y el orden importa: `aws_lambda_function` con
-`package_type = "Image"` exige que la imagen ya exista en ECR al crear el
-recurso. No se puede crear todo de una.
+> **Checklist paso a paso, solo comandos:**
+> [docs/consideraciones/despliegue.md](docs/consideraciones/despliegue.md).
+> Lo que sigue acá es la versión narrada, con el porqué de cada decisión.
+
+El despliegue es en **dos aplicaciones de Terraform**, no una: `terraform
+apply` crea toda la infraestructura de una — incluidas las 8 Lambdas — con
+`lambda_image_tag` en su valor por defecto (`"placeholder"`, un tag que
+todavía no existe en ningún repositorio). Esto **no falla**: AWS valida el
+formato del `image_uri` al crear la función, pero no que la imagen exista
+hasta la primera invocación. Recién en el segundo `apply`, después de
+publicar las imágenes reales en ECR, las Lambdas quedan funcionales.
 
 ```bash
 cd infra
@@ -352,18 +395,20 @@ cp terraform.tfvars.example terraform.tfvars   # ajustar project_name, region, o
 terraform init
 ```
 
-**Fase 1 — crear los repositorios ECR:**
+**Primer `apply` — toda la infraestructura, Lambdas incluidas (todavía sin
+imagen real):**
 
 ```bash
-terraform apply -target=module.ecr
+terraform apply
 ```
 
-**Fase 2 — construir y publicar las imágenes:**
+**Build y push de las 4 imágenes** (ya con los repositorios ECR creados por
+el apply anterior):
 
 ```bash
 cd ..
-./scripts/docker_build.sh    # build local de las 4 imágenes (sin credenciales AWS)
-./scripts/docker_push.sh     # login a ECR + push; imprime el tag a usar
+./scripts/docker/docker_build.sh    # build local de las 4 imágenes (sin credenciales AWS)
+./scripts/docker/docker_push.sh     # login a ECR + push; imprime el tag a usar
 ```
 
 Ambos scripts etiquetan con el SHA corto del commit (`git rev-parse --short
@@ -380,15 +425,16 @@ lambda_image_tag = {
 > **Nunca usar el tag `latest`.** Terraform no detectaría el cambio de imagen y
 > las Lambdas se quedarían con código viejo sin ninguna señal de error.
 
-**Fase 3 — desplegar el resto:**
+**Segundo `apply` — apunta las 8 Lambdas a la imagen real:**
 
 ```bash
 cd infra
-terraform apply    # Lambdas, S3, EventBridge, Glue, Athena
+terraform apply
 ```
 
 **Iteraciones posteriores de código:** repetir build → push → actualizar
-`lambda_image_tag` → `terraform apply`.
+`lambda_image_tag` → `terraform apply` (el mismo patrón que el segundo apply
+de arriba).
 
 **Destruir todo:**
 
@@ -417,10 +463,43 @@ Una vez desplegado, el ciclo completo del webinar:
 
 ### 1. Generar y subir archivos
 
+Primero generar localmente (sin tocar S3 todavía) — el script pide la fecha
+por consola:
+
 ```bash
-export DATA_BUCKET=$(terraform -chdir=infra output -raw data_bucket_name)
-python scripts/data_generator/generate_sales.py --date 2026-08-04 --upload
+python scripts/data_generator/generate_sales.py
 ```
+```
+Fecha inicio (YYYY-MM-DD): 2026-08-04
+Fecha fin (YYYY-MM-DD, Enter para un solo día):
+```
+
+Los archivos quedan en `data/date=2026-08-04/<division>/...`. Después, subir
+a Bronze — dos formas:
+
+```bash
+# CLI: genera y sube en un solo comando (reemplaza el paso anterior);
+# sigue pidiendo la fecha por consola igual que sin --upload
+export DATA_BUCKET=$(terraform -chdir=infra output -raw data_bucket_name)
+python scripts/data_generator/generate_sales.py --upload
+```
+
+O más corto, con `scripts/aws/upload_to_aws.sh` (resuelve `DATA_BUCKET`
+automáticamente y reenvía cualquier flag a `generate_sales.py`):
+
+```bash
+./scripts/aws/upload_to_aws.sh
+```
+
+**Alternativa sin CLI (consola web de S3):** sobre los archivos ya generados,
+arrastrar la carpeta `data/date=2026-08-04/` (el día completo, las 4
+divisiones de una vez) a la consola de S3, dentro del prefijo `bronze/`. El
+layout local (`date=<fecha>/<division>/...`) coincide a propósito con el de
+Bronze, así que el drag-and-drop reproduce la misma key que produce
+`--upload`. Ver
+[docs/consideraciones/carga_web_bronze.md](docs/consideraciones/carga_web_bronze.md)
+para el detalle y las limitaciones (no hay chequeo de duplicados: subir dos
+veces la misma división+fecha sobrescribe sin avisar).
 
 A partir de acá **el pipeline corre solo**: EventBridge dispara las 4 Lambdas de
 ingesta, que escriben a Silver, lo que dispara las 4 de transformación, que
@@ -449,6 +528,13 @@ aws glue start-crawler --name data-platform-dev-gold-crawler
 
 # Esperar a que vuelva a READY
 aws glue get-crawler --name data-platform-dev-gold-crawler --query 'Crawler.State' --output text
+```
+
+O con `scripts/aws/run_glue_crawler.sh`, que resuelve el nombre del Crawler
+desde Terraform, dispara la corrida y hace el polling hasta `READY` por vos:
+
+```bash
+./scripts/aws/run_glue_crawler.sh
 ```
 
 > **El punto más fácil de confundir en una demo en vivo.** Que el dato esté en
@@ -678,6 +764,7 @@ múltiples entornos.
 | Qué recursos crea Terraform | [SPEC-004](specs/pipeline/SPEC-004_Infraestructura_Terraform.md) |
 | Cómo está escrito el código de la Lambda | [SPEC-005](specs/pipeline/SPEC-005_Implementacion_Lambda.md) |
 | Queries y criterios de validación | [SPEC-006](specs/pipeline/SPEC-006_Analitica_Validacion_E2E.md) |
+| Desplegar paso a paso (checklist) | [docs/consideraciones/despliegue.md](docs/consideraciones/despliegue.md) |
 | Correr el Crawler | [docs/consideraciones/glue_crawler.md](docs/consideraciones/glue_crawler.md) |
 | Queries listas para pegar | [docs/consideraciones/athena_queries.md](docs/consideraciones/athena_queries.md) |
 | El diagrama y su bitácora de cambios | [docs/arquitectura/architecture.md](docs/arquitectura/architecture.md) |

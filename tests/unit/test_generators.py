@@ -62,8 +62,6 @@ def test_generate_sales_cli_writes_four_files_without_upload(tmp_path: Path):
             str(repo_root / "scripts" / "data_generator" / "generate_sales.py"),
             "--division",
             "all",
-            "--date",
-            "2026-08-01",
             "--rows",
             "5",
             "--no-upload",
@@ -72,24 +70,28 @@ def test_generate_sales_cli_writes_four_files_without_upload(tmp_path: Path):
             "--output-dir",
             str(tmp_path),
         ],
+        input="2026-08-01\n\n",
         capture_output=True,
         text=True,
         cwd=repo_root,
     )
     assert result.returncode == 0, result.stderr
 
-    expected_files = {
-        "electronica_2026-08-01.csv",
-        "supermercado_2026-08-01.xlsx",
-        "moda_2026-08-01.json",
-        "marketplace_2026-08-01.pdf",
+    expected_paths = {
+        Path("date=2026-08-01") / "electronica" / "electronica_2026-08-01.csv",
+        Path("date=2026-08-01") / "supermercado" / "supermercado_2026-08-01.xlsx",
+        Path("date=2026-08-01") / "moda" / "moda_2026-08-01.json",
+        Path("date=2026-08-01") / "marketplace" / "marketplace_2026-08-01.pdf",
     }
-    partition_dir = tmp_path / "date=2026-08-01"
-    actual_files = {p.name for p in partition_dir.iterdir()}
-    assert expected_files == actual_files
+    actual_paths = {
+        p.relative_to(tmp_path)
+        for p in tmp_path.glob("*/*/*")
+        if p.is_file()
+    }
+    assert expected_paths == actual_paths
 
 
-def test_generate_sales_cli_week_writes_seven_partition_folders(tmp_path: Path):
+def test_generate_sales_cli_range_writes_seven_partition_folders(tmp_path: Path):
     import subprocess
     import sys
 
@@ -100,9 +102,6 @@ def test_generate_sales_cli_week_writes_seven_partition_folders(tmp_path: Path):
             str(repo_root / "scripts" / "data_generator" / "generate_sales.py"),
             "--division",
             "electronica",
-            "--date",
-            "2026-08-07",
-            "--week",
             "--rows",
             "5",
             "--no-upload",
@@ -111,6 +110,7 @@ def test_generate_sales_cli_week_writes_seven_partition_folders(tmp_path: Path):
             "--output-dir",
             str(tmp_path),
         ],
+        input="2026-08-01\n2026-08-07\n",
         capture_output=True,
         text=True,
         cwd=repo_root,

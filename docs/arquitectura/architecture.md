@@ -26,10 +26,10 @@ regenerar el render es un comando.
 Generadores Python (manual)
         │  PutObject
         ▼
-S3 bronze/<division>/date=<fecha>/
+S3 bronze/date=<fecha>/<division>/
         │  Object Created → EventBridge (bus por defecto)
         ▼
-EventBridge rule "ingestion-<division>"  (module.eventbridge)
+EventBridge rule "ingestion-<division>"  (wildcard bronze/date=*/<division>/*, module.eventbridge)
         │  invoke
         ▼
 Lambda ingestion-<division>  (Docker/ECR, module.lambda_ingestion)

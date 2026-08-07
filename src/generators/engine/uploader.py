@@ -9,7 +9,7 @@ import boto3
 
 def bronze_key(division: str, date: datetime.date, ext: str) -> str:
     date_str = date.isoformat()
-    return f"bronze/{division}/date={date_str}/{division}_{date_str}.{ext}"
+    return f"bronze/date={date_str}/{division}/{division}_{date_str}.{ext}"
 
 
 def upload_to_bronze(

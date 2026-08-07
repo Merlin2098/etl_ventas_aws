@@ -19,7 +19,7 @@ digraph architecture {
   subgraph cluster_lake {
     label = "Amazon S3 — bucket único (module.s3_data_lake)";
     style = solid; color = "#4472C4";
-    bronze      [label="bronze/<division>/\ndate=YYYY-MM-DD/", fillcolor="#DDEBF7"];
+    bronze      [label="bronze/date=YYYY-MM-DD/\n<division>/", fillcolor="#DDEBF7"];
     silver      [label="silver/store=<division>/\ndate=YYYY-MM-DD/\n(Parquet)", fillcolor="#DDEBF7"];
     gold        [label="gold/store=<division>/\ndate=YYYY-MM-DD/\n(Parquet)", fillcolor="#DDEBF7"];
     quarantine  [label="quarantine/store=<division>/\ndate=YYYY-MM-DD/\n(errores JSON, acumulativo)", fillcolor="#FCE4D6"];
@@ -30,7 +30,7 @@ digraph architecture {
   subgraph cluster_eventbridge {
     label = "Amazon EventBridge (module.eventbridge)\nbus por defecto — reemplaza la notificación S3 directa (INCIDENTE-001)";
     style = solid; color = "#ED7D31";
-    eb_rule_ingestion [label="8 aws_cloudwatch_event_rule\n+ aws_cloudwatch_event_target\n+ aws_lambda_permission\n(4 ingesta + 4 transform,\nfiltro por prefix bronze/<div>/\ny silver/store=<div>/)", fillcolor="#FBE5D6"];
+    eb_rule_ingestion [label="8 aws_cloudwatch_event_rule\n+ aws_cloudwatch_event_target\n+ aws_lambda_permission\n(4 ingesta + 4 transform,\nfiltro por wildcard bronze/date=*/<div>/*\ny prefix silver/store=<div>/)", fillcolor="#FBE5D6"];
   }
 
   // ---------- Lambdas ----------

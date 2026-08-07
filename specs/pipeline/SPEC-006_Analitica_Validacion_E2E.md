@@ -113,7 +113,7 @@ ORDER BY store;
 
 El laboratorio se considera funcionando correctamente cuando, tras ejecutar los 4 generadores para una fecha dada:
 
-1. Los 4 archivos de origen existen en `bronze/<division>/date=<fecha>/`.
+1. Los 4 archivos de origen existen en `bronze/date=<fecha>/<division>/`.
 2. Cada archivo disparó, vía EventBridge, su Lambda de ingesta correspondiente (evidencia: logs de CloudWatch, ver abajo).
 3. Existen archivos Parquet en `silver/store=<division>/date=<fecha>/` para las 4 divisiones, lo que a su vez disparó, vía EventBridge, la Lambda de transformación correspondiente.
 4. Existen archivos Parquet en `gold/store=<division>/date=<fecha>/` para las 4 divisiones.

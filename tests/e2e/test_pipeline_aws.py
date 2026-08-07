@@ -48,7 +48,7 @@ def uploaded_run(aws_client, tf_outputs):
     for division, source_path in DIVISION_FILES.items():
         assert source_path.exists(), f"missing sample file for {division}: {source_path}"
 
-        bronze_key = f"bronze/{division}/{run_id}_{source_path.name}"
+        bronze_key = f"bronze/date={TEST_DATE.isoformat()}/{division}/{run_id}_{source_path.name}"
         s3.upload_file(str(source_path), bucket, bronze_key)
 
         gold_prefix = f"gold/store={division}/date={TEST_DATE.isoformat()}/"

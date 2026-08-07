@@ -13,7 +13,7 @@ sección "Validación End-to-End").
 | Workgroup de Athena                  | Contexto de ejecución de la query                                                               | `terraform -chdir=infra output athena_workgroup_name` (ej. `data-platform-dev-workgroup`)                                                                                             |
 | Base de datos                        | Contexto (`QueryExecutionContext.Database` por CLI, o selector de base de datos en la consola) | `terraform -chdir=infra output glue_database_name` (ej. `data_platform_dev_catalog`)                                                                                                  |
 | Tabla                                | Nombre usado en cada`FROM` de este documento                                                   | **`gold`** — el Glue Crawler no tiene `table_prefix` configurado, así que deriva el nombre del último segmento del path S3 (`gold/`), no `sales` (ver SPEC-006 "Tablas") |
-| Fecha en filtros`WHERE date = ...` | Debe coincidir con una partición realmente cargada                                              | Sustituir el literal`'2026-08-04'` por la fecha que hayas procesado (`bronze/<división>/date=<fecha>/`)                                                                              |
+| Fecha en filtros`WHERE date = ...` | Debe coincidir con una partición realmente cargada                                              | Sustituir el literal`'2026-08-04'` por la fecha que hayas procesado (`bronze/date=<fecha>/<división>/`)                                                                              |
 
 **Requisito previo:** el Glue Crawler debe haber corrido con éxito antes de
 consultar datos recién cargados — el descubrimiento de particiones es manual
@@ -86,22 +86,112 @@ ORDER BY store;
 
 -- Conteo Gold vs. Bronze por división para una fecha (validación de consistencia,
 -- ver SPEC-006 "Validación funcional" — comparar el resultado contra el conteo de
--- filas del archivo de origen en bronze/<division>/date=<fecha>/)
+-- filas del archivo de origen en bronze/date=<fecha>/<division>/)
 SELECT store, COUNT(*) AS num_sales
 FROM gold
 WHERE date = '2026-08-04'
 GROUP BY store;
+
+-- Ventas por moneda y por estado (SPEC-008 #5/#10 — sin homologar entre
+-- divisiones: cada una usa su propio catálogo de currency/status, ver
+-- "Columnas específicas por división" más abajo)
+SELECT store, currency, status, COUNT(*) AS num_sales, SUM(total) AS total_sales
+FROM gold
+GROUP BY store, currency, status
+ORDER BY store, total_sales DESC;
+```
+
+## Columnas específicas por división (SPEC-009 §2)
+
+Más allá del esquema común (`sale_id`, `category`, `product`, `quantity`,
+`price`, `total`, `currency`, `status`), cada división aporta sus propias
+columnas — reflejando que cada una simula un sistema empresarial distinto
+(ERP, POS, e-commerce, marketplace de terceros). Todas son **nullable**: una
+fila de Electrónica trae `NULL` en las columnas de Marketplace, y viceversa —
+`gold` sigue siendo una única tabla, sin tabla por división. Detalle completo
+del esquema en
+[SPEC-002](../../specs/pipeline/SPEC-002_Modelo_Datos_Datasets.md#campos-específicos-por-división-spec-009-2).
+
+| División    | Columnas propias                                                              |
+| ------------ | ----------------------------------------------------------------------------- |
+| Electrónica | `serial_number`, `warranty_months`, `manufacturer`, `model`           |
+| Supermercado | `cashier`, `loyalty_points`, `promotion_applied`, `register_number`   |
+| Moda         | `size`, `color`, `collection`, `season`, `return_reason`            |
+| Marketplace  | `seller_id`, `marketplace_fee`, `commission_pct`, `shipping_provider` |
+
+Estas columnas no tienen regla de validación de negocio en esta fase (una
+fila con `manufacturer` ausente o mal formado no va a cuarentena solo por
+eso), así que pueden aparecer como `NULL` incluso dentro de su propia
+división — filtrar por `IS NOT NULL` cuando corresponda.
+
+> Las queries de esta sección y "Ventas por moneda y por estado" (arriba) son
+> nuevas junto con estas columnas (SPEC-009 §2) — sintácticamente válidas
+> contra `GOLD_SCHEMA`, pero **no** corridas todavía contra un despliegue
+> real (a diferencia del resto del documento, verificado el 2026-08-04). Si
+> encontrás algo que no coincide con el resultado real, es la primera fuente
+> a corregir.
+
+```sql
+-- Electrónica: ventas por fabricante, con garantía promedio
+SELECT manufacturer, COUNT(*) AS num_sales, SUM(total) AS total_sales, AVG(warranty_months) AS avg_warranty_months
+FROM gold
+WHERE store = 'electronica' AND manufacturer IS NOT NULL
+GROUP BY manufacturer
+ORDER BY total_sales DESC;
+
+-- Supermercado: ventas y puntos de lealtad otorgados por cajero
+SELECT cashier, COUNT(*) AS num_sales, SUM(total) AS total_sales, SUM(loyalty_points) AS total_loyalty_points
+FROM gold
+WHERE store = 'supermercado' AND cashier IS NOT NULL
+GROUP BY cashier
+ORDER BY total_sales DESC;
+
+-- Supermercado: impacto de las promociones en el ticket promedio
+SELECT promotion_applied, COUNT(*) AS num_sales, AVG(total) AS avg_ticket
+FROM gold
+WHERE store = 'supermercado' AND promotion_applied IS NOT NULL
+GROUP BY promotion_applied;
+
+-- Moda: devoluciones por motivo (return_reason solo está presente en una
+-- fracción de filas RETURNED/EXCHANGED, no en toda la división — ver SPEC-007)
+SELECT return_reason, COUNT(*) AS num_returns
+FROM gold
+WHERE store = 'moda' AND return_reason IS NOT NULL
+GROUP BY return_reason
+ORDER BY num_returns DESC;
+
+-- Moda: ventas por colección y talla
+SELECT collection, size, COUNT(*) AS num_sales, SUM(total) AS total_sales
+FROM gold
+WHERE store = 'moda'
+GROUP BY collection, size
+ORDER BY collection, total_sales DESC;
+
+-- Marketplace: comisión total retenida por vendedor
+SELECT seller_id, COUNT(*) AS num_sales, SUM(total) AS gross_sales, SUM(marketplace_fee) AS total_fees
+FROM gold
+WHERE store = 'marketplace' AND seller_id IS NOT NULL
+GROUP BY seller_id
+ORDER BY gross_sales DESC;
+
+-- Marketplace: ventas por transportista logístico
+SELECT shipping_provider, COUNT(*) AS num_sales, SUM(total) AS total_sales
+FROM gold
+WHERE store = 'marketplace' AND shipping_provider IS NOT NULL
+GROUP BY shipping_provider
+ORDER BY total_sales DESC;
 ```
 
 ## Resultados esperados
 
-| Pregunta                                        | Query                   | Resultado esperado                                                                                  |
-| ----------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------- |
-| ¿Qué categoría vende más?                   | "Ventas por categoría" | Una fila por categoría presente en los datos generados, ordenadas de mayor a menor`total_sales`. |
-| ¿Cuáles son los 10 productos más vendidos?   | "Top 10 productos"      | Exactamente 10 filas (o menos si hay menos de 10 productos distintos en el dataset).                |
-| ¿Qué división genera más ingresos?          | "Ventas por tienda"     | 4 filas, una por división (`electronica`, `supermercado`, `moda`, `marketplace`).          |
-| ¿Cuál es el ticket promedio por división?    | "Ticket promedio"       | 4 filas con`avg_ticket > 0`.                                                                      |
-| ¿Cómo se distribuyen las ventas en el tiempo? | "Ventas por día"       | Una fila por cada fecha para la que se generaron y procesaron archivos.                             |
+| Pregunta                                                       | Query                            | Resultado esperado                                                                                                                             |
+| -------------------------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| ¿Qué categoría vende más?                                  | "Ventas por categoría"          | Una fila por categoría presente en los datos generados, ordenadas de mayor a menor`total_sales`.                                            |
+| ¿Cuáles son los 10 productos más vendidos?                  | "Top 10 productos"               | Exactamente 10 filas (o menos si hay menos de 10 productos distintos en el dataset).                                                           |
+| ¿Qué división genera más ingresos?                         | "Ventas por tienda"              | 4 filas, una por división (`electronica`, `supermercado`, `moda`, `marketplace`).                                                     |
+| ¿Cuál es el ticket promedio por división?                   | "Ticket promedio"                | 4 filas con`avg_ticket > 0`.                                                                                                                 |
+| ¿Cómo se distribuyen las ventas en el tiempo?                | "Ventas por día"                | Una fila por cada fecha para la que se generaron y procesaron archivos.                                                                        |
+| ¿En qué moneda y estado están las ventas de cada división? | "Ventas por moneda y por estado" | Varias filas por división — cada una usa su propio catálogo de`currency`/`status` (ver `detalle-data.yaml`), sin homologar entre sí. |
 
 ## Más allá del SELECT simple: joins, window functions y CTAS
 
@@ -198,6 +288,7 @@ normalizar categorías antes de agrupar, si se quisiera un reporte "limpio".
 ## Ver también
 
 - `docs/consideraciones/glue_crawler.md` — cómo y cuándo correr el Crawler antes de que estas queries vean datos nuevos.
+- `specs/pipeline/SPEC-002_Modelo_Datos_Datasets.md` — esquema Gold completo, incluidas las columnas específicas por división.
 - `specs/pipeline/SPEC-006_Analitica_Validacion_E2E.md` — especificación completa de Glue/Athena y criterios de validación E2E.
 - `specs/pipeline/SPEC-004_Infraestructura_Terraform.md` — definición de los módulos `glue_catalog` y `athena`.
 - `docs/architecture.md` — flujo de datos y bitácora de cambios estructurales.

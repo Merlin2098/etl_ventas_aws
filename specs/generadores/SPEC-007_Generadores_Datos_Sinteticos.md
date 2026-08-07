@@ -71,15 +71,26 @@ origen requiera un writer nuevo (ver "Selección de writer por división").
 Un único script parametrizado, no 4 scripts separados:
 
 ```
-python scripts/data_generator/generate_sales.py --division electronica --date 2026-08-01
-python scripts/data_generator/generate_sales.py --division all --date 2026-08-01   # las 4 en secuencia
-python scripts/data_generator/generate_sales.py                                    # all + fecha de hoy (defaults)
+python scripts/data_generator/generate_sales.py --division electronica
+python scripts/data_generator/generate_sales.py --division all   # las 4 en secuencia
+python scripts/data_generator/generate_sales.py                  # las 4 (default)
 ```
+
+La fecha (o rango de fechas) no se pasa por flag: el script la pide
+interactivamente por stdin, siempre:
+
+```
+Fecha inicio (YYYY-MM-DD): 2026-08-01
+Fecha fin (YYYY-MM-DD, Enter para un solo día):
+```
+
+Dejar la fecha fin en blanco genera un único día (la fecha de inicio);
+completarla genera todos los días del rango indicado, inclusive, uno por
+división y por fecha — sin límite de longitud de rango.
 
 | Argumento | Descripción | Default |
 |-----------|-------------|---------|
 | `--division` | `electronica`, `supermercado`, `moda`, `marketplace`, o `all` (ejecuta las 4 en secuencia) | `all` |
-| `--date` | Fecha de negocio a generar (`YYYY-MM-DD`) | Fecha de ejecución (hoy) |
 | `--rows` | Cantidad de filas a generar | 200-500 (ver SPEC-002) |
 | `--error-rate` | Proporción de filas con errores intencionales (0.0-1.0) | 0.05 (5%, ver "Errores intencionales") |
 | `--upload / --no-upload` | Si se sube el archivo generado a S3 Bronze o solo se escribe localmente | `--no-upload` (requiere `DATA_BUCKET` explícito para subir, ver "Carga hacia Amazon S3") |
@@ -253,10 +264,10 @@ Implementado en `common.py` como una función `maybe_corrupt(row: dict, error_ra
 
 # Carga hacia Amazon S3
 
-- Tras escribir el archivo localmente en `--output-dir`, si `--upload` está activo (opt-in explícito; el default es `--no-upload`, generación local únicamente), el script lo sube a Bronze usando boto3, con la convención de ruta definida en SPEC-003 (partición por división y luego fecha):
+- Tras escribir el archivo localmente en `--output-dir`, si `--upload` está activo (opt-in explícito; el default es `--no-upload`, generación local únicamente), el script lo sube a Bronze usando boto3, con la convención de ruta definida en SPEC-003 (partición por fecha y luego división):
 
 ```
-s3://<bucket>/bronze/<division>/date=<fecha>/<division>_<fecha>.<ext>
+s3://<bucket>/bronze/date=<fecha>/<division>/<division>_<fecha>.<ext>
 ```
 
 - El nombre de bucket se lee de una variable de entorno (`DATA_BUCKET`), nunca hardcodeado (Policy 003 — Configuration Over Hardcoding), consistente con el resto del framework.
@@ -273,6 +284,5 @@ s3://<bucket>/bronze/<division>/date=<fecha>/<division>_<fecha>.<ext>
 
 # Fuera de alcance
 
-- Generación de datos para más de una fecha en una sola invocación (`--date` es siempre una fecha única; generar un rango histórico queda como evolución futura).
 - Validación de que el archivo generado es "parseable" por la Lambda correspondiente antes de subirlo — la corrupción intencional es exactamente lo que debe fallar validación en el pipeline (SPEC-005), no en el generador.
 - Simulación de llegada fuera de horario o con delay artificial (los archivos se suben inmediatamente tras generarse).
