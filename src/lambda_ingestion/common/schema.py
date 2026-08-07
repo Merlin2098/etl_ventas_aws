@@ -8,7 +8,7 @@ import pyarrow as pa
 
 from .errors import RowValidationError
 
-# Division-specific fields (SPEC-009 §2). Always nullable: a row only
+# Division-specific fields (SPEC-002 "Campos específicos por división"). Always nullable: a row only
 # populates its own division's fields, every other row carries null here (one
 # flat Gold/Silver table for all 4 divisions, no per-division table/JSON blob).
 # No validation rule is attached to these in this phase (see _normalize_core) —
@@ -70,7 +70,7 @@ SILVER_SCHEMA = pa.schema(
     ]
 )
 
-# Field name -> caster applied when present in the raw row (SPEC-009 §2).
+# Field name -> caster applied when present in the raw row (SPEC-002).
 # No RowValidationError on failure: an unparseable extra field is dropped to
 # null rather than sending the whole row to quarantine — these fields carry
 # no business rule in this phase, unlike quantity/price/date.
@@ -116,9 +116,10 @@ def _cast_extra_bool(value: object) -> bool | None:
 
 
 def _extract_extra_fields(raw_row: dict) -> dict:
-    """Division-specific fields (SPEC-009 §2), copied through as-is if present
+    """Division-specific fields (SPEC-002), copied through as-is if present
     and well-formed, null otherwise — no RowValidationError, these fields have
-    no business rule in this phase (out of scope, see SPEC-009 §3/§6)."""
+    no business rule in this phase (out of scope, see SPEC-001 "Evoluciones
+    futuras" — calidad de datos)."""
     extra: dict = {}
     for field in _EXTRA_STRING_FIELDS:
         value = raw_row.get(field)
@@ -319,7 +320,7 @@ def validate_and_normalize(
     total = (row["price"] * row["quantity"]).quantize(Decimal("0.01"))
 
     # Extend `row` (already carries the extra fields from _normalize_core,
-    # SPEC-009 §2) rather than rebuilding a dict field-by-field, so those
+    # SPEC-002) rather than rebuilding a dict field-by-field, so those
     # fields survive into gold_row instead of being silently dropped.
     gold_row = {**row, "sale_id": sale_id, "total": total}
     return gold_row, date

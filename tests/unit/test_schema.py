@@ -16,7 +16,7 @@ from src.lambda_ingestion.common.schema import (
 )
 
 
-# Division-specific fields (SPEC-009 §2), always nullable/optional in this phase.
+# Division-specific fields (SPEC-002), always nullable/optional in this phase.
 EXTRA_FIELD_NAMES = {
     "serial_number",
     "warranty_months",
@@ -122,7 +122,7 @@ def test_validate_and_normalize_recalculates_total_ignoring_source_total():
 
 
 def test_validate_and_normalize_preserves_division_specific_fields():
-    """SPEC-009 §2: extra fields present in the raw row must survive into
+    """SPEC-002: extra fields present in the raw row must survive into
     gold_row (validate_and_normalize used to rebuild the dict field-by-field,
     silently dropping anything not in its explicit literal)."""
     row = {

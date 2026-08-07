@@ -12,7 +12,7 @@
 # currencies: monedas posibles de la división (SPEC-008 #5), la primera es la más frecuente
 # statuses: catálogo de estados propio del sistema origen (SPEC-008 #10)
 # extra_fields: catálogos cerrados para los campos específicos de división
-#   (SPEC-009 §2). Solo lista los campos cuyo valor sale de un catálogo fijo
+#   (SPEC-002 "Campos específicos por división"). Solo lista los campos cuyo valor sale de un catálogo fijo
 #   (ej. manufacturer); los campos de identificador libre (serial_number,
 #   seller_id, register_number) se generan en engine/common.py y no viven
 #   aquí. Cada división declara únicamente sus propios campos — el resto

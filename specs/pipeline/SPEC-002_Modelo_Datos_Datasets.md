@@ -94,7 +94,7 @@ duplicadas al catalogar (ver SPEC-005, "Conversión a Parquet").
 | currency | string                | No       | Columna Parquet            | Moneda de origen (SPEC-008 #5); passthrough sin homologación cruzada, default `PEN` si falta |
 | status   | string                | No       | Columna Parquet            | Estado propio del sistema origen (SPEC-008 #10); passthrough sin homologación, default `UNKNOWN` si falta |
 
-## Campos específicos por división (SPEC-009 §2)
+## Campos específicos por división
 
 Además del esquema común de arriba, cada división aporta sus propios campos al
 esquema Gold — reflejando que cada una simula un sistema empresarial distinto

@@ -181,7 +181,7 @@ ORDER BY store, total_sales DESC;
 propio catálogo de `currency`/`status` (ver `detalle-data.yaml`), sin
 homologar entre sí.
 
-## Columnas específicas por división (SPEC-009 §2)
+## Columnas específicas por división (SPEC-002)
 
 Más allá del esquema común (`sale_id`, `category`, `product`, `quantity`,
 `price`, `total`, `currency`, `status`), cada división aporta sus propias
@@ -190,7 +190,7 @@ columnas — reflejando que cada una simula un sistema empresarial distinto
 fila de Electrónica trae `NULL` en las columnas de Marketplace, y viceversa —
 `gold` sigue siendo una única tabla, sin tabla por división. Detalle completo
 del esquema en
-[SPEC-002](../../specs/pipeline/SPEC-002_Modelo_Datos_Datasets.md#campos-específicos-por-división-spec-009-2).
+[SPEC-002](../../specs/pipeline/SPEC-002_Modelo_Datos_Datasets.md#campos-específicos-por-división).
 
 | División    | Columnas propias                                                              |
 | ------------ | ----------------------------------------------------------------------------- |
@@ -205,7 +205,7 @@ eso), así que pueden aparecer como `NULL` incluso dentro de su propia
 división — filtrar por `IS NOT NULL` cuando corresponda.
 
 > Los KPIs de esta sección y "Ventas por moneda y por estado" (arriba) son
-> nuevos junto con estas columnas (SPEC-009 §2) — sintácticamente válidos
+> nuevos junto con estas columnas (SPEC-002) — sintácticamente válidos
 > contra `GOLD_SCHEMA`, pero **no** corridos todavía contra un despliegue
 > real (a diferencia del resto del documento, verificado el 2026-08-04). Si
 > encontrás algo que no coincide con el resultado real, es la primera fuente

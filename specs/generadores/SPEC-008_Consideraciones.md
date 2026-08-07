@@ -45,10 +45,11 @@ El objetivo es obligar al pipeline a realizar transformaciones reales durante el
 
 Cada categoría posee columnas exclusivas.
 
-> **Estado: implementado** (SPEC-009 §2, ver `src/generators/engine/schema.py`
-> `SaleRecord` y `src/lambda_ingestion/common/schema.py` `GOLD_SCHEMA`), con
-> ligeras diferencias de nombre/alcance respecto a la propuesta original de
-> esta sección, resueltas al implementar:
+> **Estado: implementado** (ver SPEC-002 "Campos específicos por división",
+> `src/generators/engine/schema.py` `SaleRecord` y
+> `src/lambda_ingestion/common/schema.py` `GOLD_SCHEMA`), con ligeras
+> diferencias de nombre/alcance respecto a la propuesta original de esta
+> sección, resueltas al implementar:
 > - Supermercado: `cash_register` se implementó como `register_number`.
 > - Marketplace: `coupon_code` no se implementó (queda para una fase de
 >   "campos opcionales"/promociones futura, punto 2/13 de este mismo spec).
@@ -60,7 +61,7 @@ Cada categoría posee columnas exclusivas.
 >
 > Todos los campos se implementaron como nullable, sin regla de validación de
 > negocio propia (esa parte — "Calidad de datos", punto 3 de este documento —
-> queda fuera de esta fase, ver SPEC-009 puntos 3/6).
+> queda fuera de esta fase, ver SPEC-001 "Evoluciones futuras").
 
 ### Electrónica
 

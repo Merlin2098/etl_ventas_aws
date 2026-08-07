@@ -180,7 +180,7 @@ class SaleRecord:
     status: str          # SPEC-008 #10
     # total NO se incluye: se calcula en la Lambda (SPEC-002/005), no en el generador
 
-    # Campos específicos por división (SPEC-009 §2), todos Optional = None por
+    # Campos específicos por división (SPEC-002), todos Optional = None por
     # defecto. generate_row solo los puebla para la división a la que pertenecen
     # (ej. serial_number únicamente en filas de Electrónica); en las demás
     # divisiones quedan en None y no se escriben al archivo de esa división
@@ -219,7 +219,7 @@ class SaleRecord:
 - `store` **no** se genera aquí: lo asigna la Lambda según la división de origen (SPEC-002).
 - `total` **no** se genera aquí: se recalcula en la Lambda (SPEC-002, "Reglas básicas de transformación").
 
-## Selección de campos por división (SPEC-009 §2)
+## Selección de campos por división (SPEC-002)
 
 `generate_row` puebla los campos específicos de la división actual mediante
 `_generate_extra_fields` (`engine/common.py`), que combina dos fuentes:
@@ -239,8 +239,8 @@ escribir, `generate_division` filtra el dict completo de `SaleRecord` a solo
 `config.fieldnames` — así el archivo de Electrónica no expone una columna
 `seller_id` vacía, por ejemplo. Los 4 writers (`csv_writer`, `excel_writer`,
 `json_writer`, `pdf_writer`) reciben `fieldnames` como parámetro explícito en
-vez de una constante global compartida (antes de SPEC-009 los 4 asumían el
-mismo esquema de 8 campos para toda división).
+vez de una constante global compartida (antes de introducir los campos por
+división los 4 asumían el mismo esquema de 8 campos para toda división).
 
 ---
 

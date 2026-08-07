@@ -33,7 +33,8 @@ MONTHS_ES = {
 
 
 # Field name -> Spanish header label, covering the 8 base fields (SPEC-002)
-# plus every division-specific field (SPEC-009 §2). Used by pdf_writer to
+# plus every division-specific field (SPEC-002 "Campos específicos por
+# división"). Used by pdf_writer to
 # render a human-readable header regardless of which fields a division emits.
 FIELD_LABELS_ES: dict[str, str] = {
     "sale_id": "ID Venta",
@@ -82,7 +83,7 @@ def _round_price(value: Decimal) -> Decimal:
 
 
 def _generate_extra_fields(division: str, config, status: str) -> dict:
-    """Division-specific fields (SPEC-009 §2). Closed-catalog fields (ej.
+    """Division-specific fields (SPEC-002). Closed-catalog fields (ej.
     manufacturer, size) come from `config.extra_fields` (declared in
     detalle-data.yaml); free-form identifiers (ej. serial_number, seller_id)
     are generated directly here — see config.FREE_FORM_FIELDS for which

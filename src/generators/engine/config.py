@@ -36,8 +36,9 @@ _NAMED_DATE_FORMATTERS: dict[str, Callable[[datetime.date], str]] = {
 }
 
 # Base fields present for every division (SPEC-002 esquema unificado), in the
-# fixed order writers/parsers rely on. Division-specific fields (SPEC-009 §2)
-# are appended after these, in the order listed below.
+# fixed order writers/parsers rely on. Division-specific fields (SPEC-002
+# "Campos específicos por división") are appended after these, in the order
+# listed below.
 BASE_FIELDNAMES: list[str] = [
     "sale_id",
     "date",
@@ -83,7 +84,7 @@ class DivisionConfig:
     # valores para sesgar la frecuencia (p.ej. la mayoría de ventas en PEN).
     currencies: list[str]
     statuses: list[str]
-    # Catálogos cerrados para los campos específicos de división (SPEC-009 §2),
+    # Catálogos cerrados para los campos específicos de división (SPEC-002),
     # keyed by field name (ej. {"manufacturer": [...], "warranty_months": [...]}).
     # Vacío para divisiones sin campos de catálogo cerrado propios.
     extra_fields: dict[str, list]

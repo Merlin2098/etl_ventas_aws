@@ -79,7 +79,7 @@ Electrónica trae `null` en `seller_id`, una de Marketplace trae `null` en
 `serial_number`, etc. Sigue siendo **una sola tabla Gold**, no una tabla por
 división: es el mismo principio de "un esquema convergente" llevado al detalle
 de negocio, no solo al formato de archivo. Detalle campo por campo en
-[SPEC-002](specs/pipeline/SPEC-002_Modelo_Datos_Datasets.md#campos-específicos-por-división-spec-009-2).
+[SPEC-002](specs/pipeline/SPEC-002_Modelo_Datos_Datasets.md#campos-específicos-por-división).
 
 ---
 
@@ -254,7 +254,6 @@ correspondiente, no en el código.
 | [SPEC-006](specs/pipeline/SPEC-006_Analitica_Validacion_E2E.md) | Glue, Athena y validación E2E |
 | [SPEC-007](specs/generadores/SPEC-007_Generadores_Datos_Sinteticos.md) | Generadores de datos sintéticos |
 | [SPEC-008](specs/generadores/SPEC-008_Consideraciones.md) | Complejización realista de los datasets |
-| [SPEC-009](specs/upgrade/SPEC-009-mejora.md) | Backlog de la segunda iteración (evolución del laboratorio) |
 
 ---
 

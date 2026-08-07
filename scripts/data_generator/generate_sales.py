@@ -38,7 +38,7 @@ def generate_division(
         row["date"] = config.date_formatter(record.date)
         row = maybe_corrupt(row, config.ext, error_rate)
         # SaleRecord carries every division's optional fields (schema.py); keep
-        # only this division's own columns (config.fieldnames, SPEC-009 §2) so
+        # only this division's own columns (config.fieldnames, SPEC-002) so
         # e.g. Electrónica's file doesn't show a blank seller_id column.
         row = {field: row.get(field) for field in config.fieldnames}
         records.append(row)

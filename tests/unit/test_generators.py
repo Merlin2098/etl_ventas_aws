@@ -123,7 +123,7 @@ def test_generate_sales_cli_range_writes_seven_partition_folders(tmp_path: Path)
 
 
 def test_generate_row_populates_only_its_own_division_extra_fields():
-    """SPEC-009 §2: division-specific fields (ej. serial_number for electronica)
+    """SPEC-002: division-specific fields (ej. serial_number for electronica)
     must be set only for their own division, None for the other three."""
     date = datetime.date(2026, 8, 1)
     fake = build_faker(1)
@@ -167,7 +167,7 @@ def test_generate_row_populates_only_its_own_division_extra_fields():
 
 
 def test_generate_division_electronica_csv_header_matches_its_own_fieldnames(tmp_path: Path):
-    """SPEC-009 §2: the generated CSV for a division must expose only that
+    """SPEC-002: the generated CSV for a division must expose only that
     division's own columns (base + its extra_fields), not a blank column for
     every other division's fields. CSV is the one format easy to assert on as
     plain text; xlsx/pdf/json are covered indirectly by config.fieldnames

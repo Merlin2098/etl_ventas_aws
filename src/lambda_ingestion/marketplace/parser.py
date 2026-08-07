@@ -11,7 +11,7 @@ from ..common.parser_base import SalesParser
 # Must match the column order src/generators/detalle-data.yaml (extra_fields)
 # + src/generators/engine/config.py (FREE_FORM_FIELDS) produce for marketplace
 # (base fields + shipping_provider, marketplace_fee, commission_pct, seller_id,
-# SPEC-009 §2) — this Lambda has no dependency on src/generators/ (excluded
+# SPEC-002) — this Lambda has no dependency on src/generators/ (excluded
 # from the Docker image, see docker/Dockerfile), so the field order is
 # duplicated here rather than imported.
 FIELDNAMES = [

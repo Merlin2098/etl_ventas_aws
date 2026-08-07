@@ -37,7 +37,7 @@ def _generate_clean_rows(division: str, date: datetime.date, count: int) -> list
             "currency": record.currency,
             "status": record.status,
         }
-        # Division-specific fields (SPEC-009 §2), same filtering as
+        # Division-specific fields (SPEC-002), same filtering as
         # scripts/data_generator/generate_sales.py::generate_division.
         record_dict = record.__dict__
         row.update({field: record_dict.get(field) for field in config.fieldnames if field not in row})
@@ -72,7 +72,7 @@ def test_parser_round_trips_generator_output(tmp_path: Path, division: str):
     ],
 )
 def test_parser_round_trips_own_division_extra_fields(tmp_path: Path, division: str, extra_field: str):
-    """SPEC-009 §2: a division's own extra fields must survive the
+    """SPEC-002: a division's own extra fields must survive the
     generator -> file -> parser round trip, not just the 8 base fields.
     moda is covered implicitly: JSON is a generic passthrough writer/parser."""
     date = datetime.date(2026, 8, 1)

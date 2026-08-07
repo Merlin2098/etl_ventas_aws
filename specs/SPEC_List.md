@@ -1,180 +1,32 @@
-# Planificación Documentaria - Webinar AWS Retail Data Lake
+# Glosario de SPECs
 
 **Proyecto:** Data Lake Serverless para Retail con AWS
 **Metodología:** Spec Driven Development (SDD)
 **Cantidad de SPECs:** 8
-**Objetivo:** Definir el conjunto mínimo de especificaciones necesarias para construir la demo completa mediante IA (Claude Code / ChatGPT) sin generar documentación innecesaria.
+
+Índice de referencia rápida de las specs del proyecto: qué cubre cada una y
+dónde vive. El contenido completo (objetivo, decisiones, contrato de datos,
+código de referencia) vive en el propio documento de cada spec — este archivo
+no lo duplica, solo ayuda a encontrar cuál leer.
 
 ---
 
-# SPEC-001 - Visión General del Proyecto
+## Índice
 
-## Objetivo
-
-Definir el contexto funcional y técnico del laboratorio, estableciendo el alcance, la arquitectura propuesta y el flujo general de la solución.
-
-## Contenido esperado
-
-- Contexto del negocio (RetailCorp)
-- Problema a resolver
-- Objetivos del laboratorio
-- Alcance
-- Restricciones
-- Arquitectura de alto nivel
-- Flujo End-to-End
-- Tecnologías utilizadas
-- Componentes AWS involucrados
-- Resultado esperado
+| SPEC | Título | Ubicación | Qué resuelve |
+| ---- | ------ | --------- | ------------ |
+| SPEC-001 | Visión General del Proyecto | [`SPEC-001_Vision_General.md`](SPEC-001_Vision_General.md) | Contexto de negocio, arquitectura de alto nivel, alcance del webinar y evoluciones futuras (incluye el backlog de segunda iteración). |
+| SPEC-002 | Modelo de Datos y Datasets | [`pipeline/SPEC-002_Modelo_Datos_Datasets.md`](pipeline/SPEC-002_Modelo_Datos_Datasets.md) | Contrato de datos: divisiones, esquema Gold/Silver unificado, campos específicos por división, reglas de transformación. |
+| SPEC-003 | Pipeline de Procesamiento | [`pipeline/SPEC-003_Pipeline_Procesamiento.md`](pipeline/SPEC-003_Pipeline_Procesamiento.md) | Flujo funcional completo: generación → S3 → EventBridge → Lambda → capas del Data Lake → cuarentena. |
+| SPEC-004 | Infraestructura como Código (Terraform) | [`pipeline/SPEC-004_Infraestructura_Terraform.md`](pipeline/SPEC-004_Infraestructura_Terraform.md) | Módulos Terraform, recursos AWS, variables/outputs, dependencias entre módulos, flujo de despliegue y destrucción. |
+| SPEC-005 | Implementación de la Lambda | [`pipeline/SPEC-005_Implementacion_Lambda.md`](pipeline/SPEC-005_Implementacion_Lambda.md) | Arquitectura interna de las Lambdas: parsers, Docker/ECR, validaciones, esquemas pyarrow, logging. |
+| SPEC-006 | Analítica y Validación End-to-End | [`pipeline/SPEC-006_Analitica_Validacion_E2E.md`](pipeline/SPEC-006_Analitica_Validacion_E2E.md) | Glue Data Catalog, consultas Athena, criterios de aceptación y validación E2E del laboratorio completo. |
+| SPEC-007 | Generadores de Datos Sintéticos | [`generadores/SPEC-007_Generadores_Datos_Sinteticos.md`](generadores/SPEC-007_Generadores_Datos_Sinteticos.md) | Script generador: estructura, writers por formato, selección de campos por división, errores intencionales, carga a S3. |
+| SPEC-008 | Complejización del Generador de Datasets Retail | [`generadores/SPEC-008_Consideraciones.md`](generadores/SPEC-008_Consideraciones.md) | Propuestas de realismo de datos (inconsistencias, catálogos, formatos) y su estado de implementación frente a SPEC-002/007. |
 
 ---
 
-# SPEC-002 - Modelo de Datos y Datasets
-
-## Objetivo
-
-Definir el contrato de datos que utilizará todo el proyecto, desde los archivos de entrada hasta el esquema unificado consumido por Athena.
-
-## Contenido esperado
-
-- Divisiones de negocio
-- Formatos soportados (CSV, Excel, JSON )
-- Estructura de cada dataset
-- Convenciones de nombres
-- Datos sintéticos
-- Esquema Gold unificado
-- Tipos de datos
-- Reglas básicas de transformación
-
----
-
-# SPEC-003 - Pipeline de Procesamiento
-
-## Objetivo
-
-Describir el comportamiento funcional completo del pipeline de datos, desde la generación de archivos hasta su disponibilidad para consulta.
-
-## Contenido esperado
-
-- Flujo completo de procesamiento
-- Generación de archivos
-- Carga hacia Amazon S3
-- Organización del Data Lake
-- Eventos de S3 y enrutamiento con EventBridge
-- Ejecución automática de Lambda
-- Detección del tipo de archivo
-- Conversión hacia formato estándar
-- Escritura en la capa Gold
-- Flujo de errores (alto nivel)
-
----
-
-# SPEC-004 - Infraestructura como Código (Terraform)
-
-## Objetivo
-
-Definir la infraestructura AWS necesaria para soportar el laboratorio, así como la organización del proyecto Terraform.
-
-## Contenido esperado
-
-- Organización del repositorio
-- Módulos Terraform
-- Recursos AWS
-- Variables
-- Outputs
-- Naming Convention
-- Dependencias entre recursos
-- Flujo de despliegue
-- Flujo de destrucción
-
----
-
-# SPEC-005 - Implementación de la Lambda
-
-## Objetivo
-
-Definir la arquitectura interna de la función Lambda responsable del procesamiento de archivos.
-
-## Contenido esperado
-
-- Arquitectura interna
-- Organización del código
-- Uso de Docker y Amazon ECR
-- Contrato de los parsers
-- Estrategia para soportar múltiples formatos
-- Validaciones
-- Manejo de errores
-- Conversión a Parquet
-- Logging
-- Variables de entorno
-
----
-
-# SPEC-006 - Analítica y Validación End-to-End
-
-## Objetivo
-
-Definir la capa analítica del laboratorio y los criterios que permitirán validar que la solución funciona correctamente.
-
-## Contenido esperado
-
-### Glue Data Catalog
-
-- Base de datos
-- Tablas
-- Descubrimiento de datos
-
-### Amazon Athena
-
-- Consultas SQL de ejemplo
-- Preguntas de negocio
-- Resultados esperados
-
-### Validación End-to-End
-
-- Criterios de aceptación
-- Validación funcional
-- Validación del despliegue
-- Validación del procesamiento
-- Validación de consultas
-- Evidencias esperadas
-
----
-
-# SPEC-007 - Generadores de Datos Sintéticos
-
-## Objetivo
-
-Definir el script Python que genera los datasets sintéticos de ventas para las 4 divisiones de RetailCorp, en sus formatos de origen correspondientes, y los sube a la capa Bronze del Data Lake.
-
-## Contenido esperado
-
-- Librerías a utilizar y criterio de decisión
-- Estructura del script y entrypoint CLI
-- Selección de writer por división
-- Generación de filas y catálogo por división
-- Errores intencionales (cuarentena)
-- Carga hacia Amazon S3
-- Reproducibilidad (semilla)
-
----
-
-# SPEC-008 - Complejización del Generador de Datasets Retail
-
-## Objetivo
-
-Incrementar el nivel de realismo de los datasets utilizados durante el laboratorio para que representen escenarios similares a los encontrados en proyectos empresariales de Data Engineering sobre AWS, introduciendo problemas reales de integración y calidad de datos en vez de simplemente agregar columnas.
-
-## Contenido esperado
-
-- Categorías consideradas (dominios de negocio simulados)
-- Principios de diseño
-- Propuestas de complejización
-- Beneficios para el laboratorio
-- Resultado esperado
-
----
-
-# Dependencia entre SPECs
+## Dependencia entre SPECs
 
 ```text
 SPEC-001
@@ -196,30 +48,14 @@ SPEC-001
 
 ---
 
-# Orden recomendado de elaboración
+## Cómo mantener este glosario al día
 
-| Orden | SPEC                                           | Prioridad |
-| ----- | ---------------------------------------------- | --------- |
-| 1     | SPEC-001 - Visión General del Proyecto        | Alta      |
-| 2     | SPEC-002 - Modelo de Datos y Datasets          | Alta      |
-| 3     | SPEC-003 - Pipeline de Procesamiento           | Alta      |
-| 4     | SPEC-004 - Infraestructura Terraform           | Media     |
-| 5     | SPEC-005 - Implementación de la Lambda        | Media     |
-| 6     | SPEC-006 - Analítica y Validación End-to-End | Media     |
-| 7     | SPEC-007 - Generadores de Datos Sintéticos    | Alta      |
-| 8     | SPEC-008 - Complejización del Generador de Datasets Retail | Media |
+Este archivo es un índice, no el lugar para documentar contenido nuevo.
+Actualizarlo solo cuando:
 
----
+- Se agrega, elimina o renombra una spec.
+- Cambia la ubicación de un archivo de spec.
+- Cambia la relación de dependencia entre specs.
 
-# Resultado esperado
-
-Al finalizar los seis documentos deberá existir suficiente información para que un agente de IA pueda:
-
-- Comprender el problema de negocio.
-- Implementar la infraestructura mediante Terraform.
-- Generar los datasets sintéticos.
-- Construir la Lambda basada en Docker.
-- Procesar automáticamente múltiples formatos de archivos.
-- Publicar los datos normalizados en Amazon S3.
-- Consultar la información mediante Amazon Athena.
-- Validar el funcionamiento completo del laboratorio sin requerir documentación adicional.
+El contenido técnico (qué dice cada spec, su estado de implementación, su
+bitácora de decisiones) se edita en el propio documento de la spec — no acá.

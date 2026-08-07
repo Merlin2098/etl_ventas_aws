@@ -232,8 +232,8 @@ Python (que no garantiza `date` como tipo `date32` ni `price`/`total` como `deci
 ```python
 import pyarrow as pa
 
-# Division-specific fields (SPEC-002 "Campos específicos por división",
-# SPEC-009 §2). Always nullable — one flat table for all 4 divisions.
+# Division-specific fields (SPEC-002 "Campos específicos por división").
+# Always nullable — one flat table for all 4 divisions.
 EXTRA_FIELDS = [
     pa.field("serial_number", pa.string(), nullable=True),
     pa.field("warranty_months", pa.int32(), nullable=True),
